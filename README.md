@@ -1,4 +1,4 @@
-# [Law Firm Name] — Intelligent Case Intake & Assignment System
+# [Ashfords Law Firm] — Intelligent Case Intake & Assignment System
 
 ## About Us
 
