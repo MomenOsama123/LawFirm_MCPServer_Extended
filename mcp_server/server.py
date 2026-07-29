@@ -1,7 +1,7 @@
 from fastmcp import FastMCP
 
 mcp = FastMCP(
-    name="Legal Intake MCP",
+    name="Law_Firm_MCP",
     version="1.0.0"
 )
 
