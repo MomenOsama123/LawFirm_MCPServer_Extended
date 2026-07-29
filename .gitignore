@@ -1,0 +1,10 @@
+# Python bytecode and cache folders
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment files containing secrets/API keys
+.env
+.env.*
+!.env.example
