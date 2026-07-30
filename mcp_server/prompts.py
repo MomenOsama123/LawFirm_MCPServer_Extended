@@ -1,4 +1,4 @@
-from server import mcp
+from .server import mcp
 
 @mcp.prompt(
     description="Generates a structured legal summary framework for a client's case file or notes."

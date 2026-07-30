@@ -1,49 +1,60 @@
 import sqlite3
-import os
+from pathlib import Path
 
-DB_FILE = "case_intake.db"
-SCHEMA_FILE = "schema.sql"
-SEED_FILE = "seed_data.sql"
+# Directory containing this file
+DB_DIR = Path(__file__).resolve().parent
+
+DB_FILE = DB_DIR / "case_intake.db"
+SCHEMA_FILE = DB_DIR / "schema.sql"
+SEED_FILE = DB_DIR / "seed_data.sql"
 
 
 def main():
-    # Start fresh each time this script runs, so the demo is repeatable.
-    if os.path.exists(DB_FILE):
-        os.remove(DB_FILE)
-        print(f"Removed existing '{DB_FILE}' to start clean.")
+    # Start fresh each time this script runs
+    if DB_FILE.exists():
+        DB_FILE.unlink()
+        print(f"Removed existing '{DB_FILE.name}' to start clean.")
 
     conn = sqlite3.connect(DB_FILE)
     conn.execute("PRAGMA foreign_keys = ON;")
 
-    # 1. Build the schema (tables, constraints, indexes)
+    # Load schema
     with open(SCHEMA_FILE, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
-    conn.commit()
-    print(f"Schema loaded from '{SCHEMA_FILE}'.")
 
-    # 2. Load the seed data (normal cases + edge cases), if present
-    if os.path.exists(SEED_FILE):
+    conn.commit()
+    print(f"Schema loaded from '{SCHEMA_FILE.name}'.")
+
+    # Load seed data
+    if SEED_FILE.exists():
         with open(SEED_FILE, "r", encoding="utf-8") as f:
             conn.executescript(f.read())
+
         conn.commit()
-        print(f"Seed data loaded from '{SEED_FILE}'.")
+        print(f"Seed data loaded from '{SEED_FILE.name}'.")
     else:
-        print(f"No '{SEED_FILE}' found — database created with empty tables.")
+        print("No seed file found.")
 
-    # Quick sanity check: list tables and their row counts.
     cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
-    tables = [row[0] for row in cursor.fetchall()]
+    cursor.execute("""
+        SELECT name
+        FROM sqlite_master
+        WHERE type='table'
+        ORDER BY name
+    """)
 
+    tables = [row[0] for row in cursor.fetchall()]
     conn.close()
 
-    print(f"\n'{DB_FILE}' ready with {len(tables)} tables:")
+    print(f"\nDatabase created at:\n{DB_FILE}\n")
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+
     for table in tables:
         cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
-        count = cursor.fetchone()[0]
-        print(f"  - {table} ({count} rows)")
+        print(f"{table}: {cursor.fetchone()[0]} rows")
+
     conn.close()
 
 
