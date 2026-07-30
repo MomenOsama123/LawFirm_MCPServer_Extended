@@ -11,6 +11,10 @@ from .elicitation import require_fields
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------
+# DATABASE HEALTH CHECK
+# ---------------------------
+
 @mcp.tool(
     description="Check whether the database connection is working."
 )
@@ -73,7 +77,7 @@ def get_client(client_party_id: str) -> dict:
 
 
 # ---------------------------
-# CASE
+# CASE RETRIEVAL
 # ---------------------------
 
 @mcp.tool(
@@ -103,6 +107,10 @@ def get_case(case_id: str) ->dict:
 
     return dict(row)
 
+
+# ---------------------------
+# ASSIGN CASE TO LAWYER
+# ---------------------------    
 
 @mcp.tool(
     description="Assign a lawyer to a case."
@@ -136,73 +144,95 @@ async def assign_case_to_lawyer(
     assigned_by = values["assigned_by"]
     role_on_case = values["role_on_case"]
 
+    # Statuses that are allowed to move into 'assigned'.
+    # Adjust this set to match your actual case-status lifecycle.
+    ASSIGNABLE_STATUSES = {"accepted"}
+
     with get_connection() as conn:
         cursor = conn.cursor()
 
-        cursor.execute(
-            'SELECT status FROM "case" WHERE case_id = ?',
-            (case_id,)
-        )
+        try:
+            cursor.execute(
+                'SELECT status FROM "case" WHERE case_id = ?',
+                (case_id,)
+            )
+            case = cursor.fetchone()
 
-        case = cursor.fetchone()
+            if not case:
+                return {"error": "Case not found."}
 
-        if not case:
-            return {"error": "Case not found."}
+            case_status = case["status"]
 
-        cursor.execute("""
-            SELECT current_caseload, max_caseload
-            FROM lawyer
-            WHERE lawyer_id = ?
-              AND status='active'
-        """, (lawyer_id,))
+            if case_status not in ASSIGNABLE_STATUSES:
+                return {
+                    "error": (
+                        f"Case cannot be assigned from its current status "
+                        f"('{case_status}'). Case must be in one of: "
+                        f"{sorted(ASSIGNABLE_STATUSES)}."
+                    )
+                }
 
-        lawyer = cursor.fetchone()
+            cursor.execute("""
+                SELECT current_caseload, max_caseload
+                FROM lawyer
+                WHERE lawyer_id = ?
+                  AND status='active'
+            """, (lawyer_id,))
 
-        if not lawyer:
-            return {"error": "Lawyer not found or inactive."}
+            lawyer = cursor.fetchone()
 
-        if lawyer["current_caseload"] >= lawyer["max_caseload"]:
-            return {"error": "Lawyer is already at maximum caseload."}
+            if not lawyer:
+                return {"error": "Lawyer not found or inactive."}
 
-        assignment_id = str(uuid.uuid4())
+            if lawyer["current_caseload"] >= lawyer["max_caseload"]:
+                return {"error": "Lawyer is already at maximum caseload."}
 
-        cursor.execute("""
-            INSERT INTO case_assignment(
+            assignment_id = str(uuid.uuid4())
+
+            cursor.execute("""
+                INSERT INTO case_assignment(
+                    assignment_id,
+                    case_id,
+                    lawyer_id,
+                    assigned_by,
+                    role_on_case
+                )
+                VALUES (?, ?, ?, ?, ?)
+            """, (
                 assignment_id,
                 case_id,
                 lawyer_id,
                 assigned_by,
-                role_on_case
+                role_on_case,
+            ))
+
+            cursor.execute("""
+                UPDATE lawyer
+                SET current_caseload = current_caseload + 1
+                WHERE lawyer_id = ?
+            """, (lawyer_id,))
+
+            cursor.execute("""
+                UPDATE "case"
+                SET status='assigned',
+                    updated_at=datetime('now')
+                WHERE case_id=?
+            """, (case_id,))
+
+            conn.commit()
+
+        except Exception as e:
+            conn.rollback()
+            logger.exception(
+                "Failed to assign lawyer '%s' to case '%s': %s",
+                lawyer_id, case_id, e
             )
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            assignment_id,
-            case_id,
-            lawyer_id,
-            assigned_by,
-            role_on_case,
-        ))
-
-        cursor.execute("""
-            UPDATE lawyer
-            SET current_caseload = current_caseload + 1
-            WHERE lawyer_id = ?
-        """, (lawyer_id,))
-
-        cursor.execute("""
-            UPDATE "case"
-            SET status='assigned',
-                updated_at=datetime('now')
-            WHERE case_id=?
-        """, (case_id,))
-
-        conn.commit()
+            return {"error": f"Assignment failed and was rolled back: {e}"}
 
     return {
         "success": True,
         "assignment_id": assignment_id,
     }
-
 
 # ---------------------------
 # ACCEPT CASE
