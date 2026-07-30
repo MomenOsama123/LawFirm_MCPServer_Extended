@@ -3,7 +3,7 @@ from .mcp_client import LawFirmMCPClient
 from .transports.stdio import StdioMCPTransport
 
 # To run: python -m agent.test_mcp_client
-
+# Test done
 
 async def main():
 
@@ -19,6 +19,27 @@ async def main():
         await mcp_client.initialize()
 
         print("MCP client connected successfully.")
+
+        # ==================================
+        # 4. TEST SERVER CAPABILITIES
+        # ==================================
+
+        print("\nServer capabilities:")
+
+        print(
+            "Tools:",
+            mcp_client.supports("tools")
+        )
+
+        print(
+            "Resources:",
+            mcp_client.supports("resources")
+        )
+
+        print(
+            "Prompts:",
+            mcp_client.supports("prompts")
+        )
 
         # ==================================
         # 4. TEST MCP TOOLS
@@ -49,7 +70,7 @@ async def main():
 
         print("\nIntake policy resource:")
 
-        print(intake_policy)
+        print(intake_policy[0].text)
 
         # ==================================
         # 6. TEST MCP PROMPT
@@ -62,7 +83,7 @@ async def main():
 
         print("\nCase summary prompt:")
 
-        print(case_prompt)
+        print( case_prompt.messages[0].content.text)
 
     finally:
 
@@ -74,66 +95,6 @@ async def main():
 
         print("\nMCP connection closed.")
 
-
 if __name__ == "__main__":
-
     asyncio.run(main())
-
-print("FILE LOADED")
-# ___________________________________________________________________________-
-# import asyncio
-
-# from .mcp_client import LawFirmMCPClient
-# from .transports.stdio import StdioMCPTransport
-
-
-# async def main():
-
-#     print("MAIN STARTED")
-
-#     transport = StdioMCPTransport()
-
-#     print("TRANSPORT CREATED")
-
-#     mcp_client = LawFirmMCPClient(
-#         transport=transport
-#     )
-
-#     print("MCP CLIENT CREATED")
-
-#     try:
-#         print("CONNECTING...")
-
-#         await mcp_client.initialize()
-
-#         print("CONNECTED")
-
-#         tools = await mcp_client.list_tools()
-
-#         print("TOOLS:")
-#         print(tools)
-
-#         result = await mcp_client.call_tool(
-#             tool_name="database_health",
-#             arguments={},
-#         )
-
-#         print("RESULT:")
-#         print(result)
-
-#     except Exception as error:
-#         print("ERROR:")
-#         print(repr(error))
-#         raise
-
-#     finally:
-#         await mcp_client.close()
-#         print("CONNECTION CLOSED")
-
-
-# if __name__ == "__main__":
-#     try:
-#         asyncio.run(main())
-#     except Exception:
-#         import traceback
-#         traceback.print_exc()
+    print("FILE LOADED")
