@@ -11,6 +11,7 @@ mcp = FastMCP(name="Law_Firm_MCP")
 
 from .tools import *
 from .prompts import *
+from .resources import *
 
 
 if __name__ == "__main__":
