@@ -1,8 +1,11 @@
 from .server import mcp
 from .database import get_connection
-from datetime import datetime
 import uuid
 import logging
+
+from fastmcp import Context
+
+from .elicitation import require_fields
 
 
 logger = logging.getLogger(__name__)
@@ -101,39 +104,56 @@ def get_case(case_id: str) ->dict:
     return dict(row)
 
 
-# ---------------------------
-# ASSIGN LAWYER
-# ---------------------------
-
 @mcp.tool(
     description="Assign a lawyer to a case."
 )
-def assign_case_to_lawyer(
-    case_id: str,
-    lawyer_id: str,
-    assigned_by: str,
-    role_on_case: str = "lead"
+async def assign_case_to_lawyer(
+    ctx: Context,
+    case_id: str | None = None,
+    lawyer_id: str | None = None,
+    assigned_by: str | None = None,
+    role_on_case: str | None = "lead",
 ) -> dict:
+
+    values = await require_fields(
+        ctx,
+        {
+            "case_id": case_id,
+            "lawyer_id": lawyer_id,
+            "assigned_by": assigned_by,
+            "role_on_case": role_on_case,
+        },
+        {
+            "case_id": "The case ID to assign.",
+            "lawyer_id": "The lawyer that will handle the case.",
+            "assigned_by": "The staff member assigning the lawyer.",
+            "role_on_case": "Role of the lawyer on this case.",
+        },
+    )
+
+    case_id = values["case_id"]
+    lawyer_id = values["lawyer_id"]
+    assigned_by = values["assigned_by"]
+    role_on_case = values["role_on_case"]
 
     with get_connection() as conn:
         cursor = conn.cursor()
 
-        # Verify case exists
         cursor.execute(
             'SELECT status FROM "case" WHERE case_id = ?',
             (case_id,)
         )
+
         case = cursor.fetchone()
 
         if not case:
             return {"error": "Case not found."}
 
-        # Verify lawyer exists
         cursor.execute("""
             SELECT current_caseload, max_caseload
             FROM lawyer
             WHERE lawyer_id = ?
-              AND status = 'active'
+              AND status='active'
         """, (lawyer_id,))
 
         lawyer = cursor.fetchone()
@@ -160,7 +180,7 @@ def assign_case_to_lawyer(
             case_id,
             lawyer_id,
             assigned_by,
-            role_on_case
+            role_on_case,
         ))
 
         cursor.execute("""
@@ -180,7 +200,7 @@ def assign_case_to_lawyer(
 
     return {
         "success": True,
-        "assignment_id": assignment_id
+        "assignment_id": assignment_id,
     }
 
 
@@ -191,11 +211,30 @@ def assign_case_to_lawyer(
 @mcp.tool(
     description="Accept a case after review."
 )
-def accept_case(
-    case_id: str,
-    decided_by: str,
-    decision_reason: str
+async def accept_case(
+    ctx: Context,
+    case_id: str | None = None,
+    decided_by: str | None = None,
+    decision_reason: str | None = None,
 ) -> dict:
+
+    values = await require_fields(
+        ctx,
+        {
+            "case_id": case_id,
+            "decided_by": decided_by,
+            "decision_reason": decision_reason,
+        },
+        {
+            "case_id": "The case ID to accept.",
+            "decided_by": "The staff member approving the case.",
+            "decision_reason": "Reason for accepting the case.",
+        },
+    )
+
+    case_id = values["case_id"]
+    decided_by = values["decided_by"]
+    decision_reason = values["decision_reason"]
 
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -233,11 +272,30 @@ def accept_case(
 @mcp.tool(
     description="Reject a case after review."
 )
-def reject_case(
-    case_id: str,
-    decided_by: str,
-    decision_reason: str
+async def reject_case(
+    ctx: Context,
+    case_id: str | None = None,
+    decided_by: str | None = None,
+    decision_reason: str | None = None,
 ) -> dict:
+
+    values = await require_fields(
+        ctx,
+        {
+            "case_id": case_id,
+            "decided_by": decided_by,
+            "decision_reason": decision_reason,
+        },
+        {
+            "case_id": "The case ID to reject.",
+            "decided_by": "The staff member rejecting the case.",
+            "decision_reason": "Reason for rejecting the case.",
+        },
+    )
+
+    case_id = values["case_id"]
+    decided_by = values["decided_by"]
+    decision_reason = values["decision_reason"]
 
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -254,7 +312,7 @@ def reject_case(
         """, (
             decision_reason,
             decided_by,
-            case_id
+            case_id,
         ))
 
         conn.commit()
@@ -264,7 +322,7 @@ def reject_case(
 
     return {
         "success": True,
-        "message": "Case rejected."
+        "message": "Case rejected.",
     }
 
 
