@@ -3,13 +3,21 @@
 import asyncio
 from .agent import run_agent
 from .mcp_client import LawFirmMCPClient
-from .transports.stdio import StdioMCPTransport
+#from .transports.stdio import StdioMCPTransport
+from .transports.streamable import (
+    HTTPMCPTransport
+)
+
 
 
 async def main():
 
     # 1. Create the STDIO transport
-    transport = StdioMCPTransport()
+    #transport = StdioMCPTransport()
+    
+    transport = HTTPMCPTransport(
+    url="http://127.0.0.1:8000/mcp"
+    )
 
     # 2. Create the MCP client
     mcp_client = LawFirmMCPClient(
@@ -165,7 +173,8 @@ async def main():
 
 
 if __name__ == "__main__":
-
-    asyncio.run(
-        main()
-    )
+    try:
+        asyncio.run(main())
+    except Exception:
+        import traceback
+        traceback.print_exc()

@@ -2,7 +2,9 @@
 
 import asyncio
 from .mcp_client import LawFirmMCPClient
-from .transports.stdio import StdioMCPTransport
+from .transports.streamable import (
+    HTTPMCPTransport
+)
 
 # To run: python -m agent.test_mcp_client
 # Test done
@@ -10,7 +12,17 @@ from .transports.stdio import StdioMCPTransport
 async def main():
 
     # 1. Create the local STDIO transport
-    transport = StdioMCPTransport()
+    transport = HTTPMCPTransport(
+        url="http://127.0.0.1:8000/mcp"
+    )
+
+    # ==================================
+    # 2. CREATE THE MCP CLIENT
+    # ==================================
+
+    mcp_client = LawFirmMCPClient(
+        transport=transport
+    )
 
     # 2. Give the transport to the MCP client
     mcp_client = LawFirmMCPClient(transport=transport)

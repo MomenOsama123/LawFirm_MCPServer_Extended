@@ -1,15 +1,14 @@
-# inital version of the agent.py 
 import os
 import json
 from typing import Any
 from dotenv import load_dotenv
 from google import genai
+
 from tenacity import (
     retry,
     stop_after_attempt,
     wait_fixed,
 )
-
 from .config import (
     REQUIRED_CASE_TOOLS,
     REQUIRED_RESOURCES,
@@ -51,42 +50,134 @@ provided in the conversation.
 Rules:
 
 * Never access the database directly.
-* Never invent or rename tools.
-* Use exact tool names and argument names.
+
+* Never invent, rename, or use unavailable tools.
+
+* Use exact MCP tool names and argument names.
+
 * Retrieve case details before making a decision.
+
 * Check conflicts before accepting a case.
-* Analyze each tool result before choosing the next action.
+
+* Analyze every tool result before selecting
+  the next action.
+
+* Use only the MCP tools listed in the most recent
+  "Current MCP tools available for this step" message.
+
 * Do not exceed MAX_STEPS.
-* If information is insufficient or a conflict is unresolved,
-  use "escalate".
 
-Tool arguments:
+* If information is insufficient or a conflict
+  is unresolved, use "escalate".
 
-* get_case:
-  {"case_id": "..."}
-* get_conflict_checks:
-  {"case_id": "..."}
-* get_client:
-  {"client_party_id": "..."}
+Decision execution:
+
+* If the case should be accepted:
+
+  1. Call "accept_case".
+
+  2. Review the current MCP tool list.
+
+  3. If "assign_case_to_lawyer" is available,
+     select a qualified active lawyer using the
+     loaded lawyer information.
+
+  4. Do not assign a lawyer whose current caseload
+     is already at maximum capacity.
+
+  5. Call "assign_case_to_lawyer".
+
+  6. Use "final_answer" only after all required
+     MCP tools succeed.
+
+* If the case should be rejected:
+
+  1. Call "reject_case".
+
+  2. Use "final_answer" only after the tool succeeds.
+
+* Never return "Accept Case" or "Reject Case"
+  before executing the corresponding MCP write tool.
+
+* The tools "accept_case" and "reject_case"
+  perform the actual database updates.
+
+Conflict rules:
+
+* If a conflict is unresolved, use "escalate".
+
+* If a conflict is confirmed, use "reject_case".
 
 Return only valid JSON:
 
 {
-"thought": "Short reasoning for the next step.",
-"action": "MCP tool name, final_answer, or escalate",
-"action_input": {},
-"final_decision": null
+    "thought": "Short explanation of the next action.",
+    "action": "An available MCP tool, final_answer, or escalate",
+    "action_input": {},
+    "final_decision": null
 }
 
-When enough information is available:
+Examples:
+
+Accept a case:
 
 {
-"thought": "Short explanation of the decision.",
-"action": "final_answer",
-"action_input": {},
-"final_decision": "Accept Case, Reject Case, Request More Information, or Escalate for Senior Review"
+    "thought": "The case passed all required checks.",
+    "action": "accept_case",
+    "action_input": {
+        "case_id": "...",
+        "decided_by": "...",
+        "decision_reason": "All intake requirements were satisfied."
+    },
+    "final_decision": null
+}
+
+Assign a lawyer:
+
+{
+    "thought": "The case was accepted and is ready for assignment.",
+    "action": "assign_case_to_lawyer",
+    "action_input": {
+        "case_id": "...",
+        "lawyer_id": "...",
+        "assigned_by": "...",
+        "role_on_case": "lead"
+    },
+    "final_decision": null
+}
+
+Finish after successful acceptance:
+
+{
+    "thought": "The case was accepted and assigned successfully.",
+    "action": "final_answer",
+    "action_input": {},
+    "final_decision": "Accept Case"
+}
+
+Reject a case:
+
+{
+    "thought": "A confirmed conflict of interest was identified.",
+    "action": "reject_case",
+    "action_input": {
+        "case_id": "...",
+        "decided_by": "...",
+        "decision_reason": "A confirmed conflict of interest was identified."
+    },
+    "final_decision": null
+}
+
+Finish after successful rejection:
+
+{
+    "thought": "The case was rejected successfully.",
+    "action": "final_answer",
+    "action_input": {},
+    "final_decision": "Reject Case"
 }
 """
+
 
 # ==================================
 # 4. CALL GEMINI
@@ -95,6 +186,7 @@ When enough information is available:
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_fixed(1),
+    reraise=True,
 )
 def call_model(
     messages: list[dict[str, str]],
@@ -150,8 +242,9 @@ async def run_agent(
     8. Send memory to Gemini.
     9. Validate Gemini's action.
     10. Execute MCP tools.
-    11. Save tool results in memory.
-    12. Continue reasoning until a final decision
+    11. Refresh dynamic MCP tools.
+    12. Save tool results in memory.
+    13. Continue reasoning until a final decision
         or MAX_STEPS is reached.
     """
 
@@ -231,7 +324,6 @@ async def run_agent(
         )
 
         return {
-
             "decision": (
                 "Unable to evaluate "
                 "the case"
@@ -246,7 +338,6 @@ async def run_agent(
             "memory": (
                 memory.get_messages()
             ),
-
         }
 
     print(
@@ -278,7 +369,7 @@ async def run_agent(
     memory.add_message(
         role="system",
         content=(
-            "Available MCP tools:\n"
+            "Initial MCP tools:\n"
             + "\n".join(
                 available_tools
             )
@@ -319,7 +410,6 @@ async def run_agent(
         )
 
         return {
-
             "decision": (
                 "Unable to evaluate "
                 "the case"
@@ -334,7 +424,6 @@ async def run_agent(
             "memory": (
                 memory.get_messages()
             ),
-
         }
 
     print(
@@ -365,7 +454,6 @@ async def run_agent(
         )
 
         return {
-
             "decision": (
                 "Unable to evaluate "
                 "the case"
@@ -380,7 +468,6 @@ async def run_agent(
             "memory": (
                 memory.get_messages()
             ),
-
         }
 
     print(
@@ -451,7 +538,6 @@ async def run_agent(
             )
 
             return {
-
                 "decision": (
                     "Unable to evaluate "
                     "the case"
@@ -466,7 +552,6 @@ async def run_agent(
                 "memory": (
                     memory.get_messages()
                 ),
-
             }
 
     # ----------------------------------
@@ -518,7 +603,6 @@ async def run_agent(
         )
 
         return {
-
             "decision": (
                 "Unable to evaluate "
                 "the case"
@@ -533,7 +617,6 @@ async def run_agent(
             "memory": (
                 memory.get_messages()
             ),
-
         }
 
     print(
@@ -619,7 +702,6 @@ async def run_agent(
         )
 
         return {
-
             "decision": (
                 "Unable to evaluate "
                 "the case"
@@ -634,7 +716,6 @@ async def run_agent(
             "memory": (
                 memory.get_messages()
             ),
-
         }
 
     print(
@@ -650,6 +731,18 @@ async def run_agent(
 
     while steps_taken < MAX_STEPS:
 
+        # ----------------------------------
+        # GET CURRENT MCP TOOL LIST
+        # ----------------------------------
+
+        available_tools = (
+            mcp_client.available_tools
+        )
+
+        # ----------------------------------
+        # DISPLAY CURRENT STEP
+        # ----------------------------------
+
         print(
             "\n"
             "================================"
@@ -664,9 +757,24 @@ async def run_agent(
             "================================"
         )
 
-        # ------------------------------
+        # ----------------------------------
+        # UPDATE GEMINI WITH CURRENT TOOLS
+        # ----------------------------------
+
+        memory.add_message(
+            role="system",
+            content=(
+                "Current MCP tools available "
+                "for this step:\n"
+                + "\n".join(
+                    available_tools
+                )
+            ),
+        )
+
+        # ----------------------------------
         # SEND CURRENT MEMORY TO GEMINI
-        # ------------------------------
+        # ----------------------------------
 
         print(
             "\nSending agent memory "
@@ -703,7 +811,6 @@ async def run_agent(
             )
 
             return {
-
                 "decision": (
                     "Unable to evaluate "
                     "the case"
@@ -720,12 +827,11 @@ async def run_agent(
                 "memory": (
                     memory.get_messages()
                 ),
-
             }
 
-        # ------------------------------
+        # ----------------------------------
         # PARSE GEMINI RESPONSE
-        # ------------------------------
+        # ----------------------------------
 
         try:
 
@@ -777,7 +883,6 @@ async def run_agent(
             )
 
             return {
-
                 "decision": (
                     "Unable to evaluate "
                     "the case"
@@ -794,12 +899,11 @@ async def run_agent(
                 "memory": (
                     memory.get_messages()
                 ),
-
             }
 
-        # ------------------------------
+        # ----------------------------------
         # DISPLAY AGENT DECISION
-        # ------------------------------
+        # ----------------------------------
 
         print(
             "\nAgent thought:"
@@ -825,9 +929,9 @@ async def run_agent(
             action_input
         )
 
-        # ------------------------------
+        # ----------------------------------
         # SAVE GEMINI RESPONSE
-        # ------------------------------
+        # ----------------------------------
 
         memory.add_message(
             role="assistant",
@@ -841,9 +945,9 @@ async def run_agent(
             ),
         )
 
-        # ------------------------------
+        # ----------------------------------
         # INCREMENT STEP COUNT
-        # ------------------------------
+        # ----------------------------------
 
         steps_taken += 1
 
@@ -871,12 +975,16 @@ async def run_agent(
             error_message = (
                 "Gemini selected an "
                 "action that is not "
-                "allowed: "
+                "currently available: "
                 f"{action}"
             )
 
-            return {
+            memory.add_message(
+                role="assistant",
+                content=error_message,
+            )
 
+            return {
                 "decision": (
                     "Unable to evaluate "
                     "the case"
@@ -893,7 +1001,6 @@ async def run_agent(
                 "memory": (
                     memory.get_messages()
                 ),
-
             }
 
         # ==================================
@@ -913,7 +1020,6 @@ async def run_agent(
             )
 
             return {
-
                 "decision": (
                     final_decision
                 ),
@@ -949,7 +1055,6 @@ async def run_agent(
                 "memory": (
                     memory.get_messages()
                 ),
-
             }
 
         # ==================================
@@ -966,7 +1071,6 @@ async def run_agent(
             )
 
             return {
-
                 "decision": (
                     "Escalate for "
                     "Senior Review"
@@ -1004,7 +1108,6 @@ async def run_agent(
                 "memory": (
                     memory.get_messages()
                 ),
-
             }
 
         # ==================================
@@ -1041,6 +1144,24 @@ async def run_agent(
                 tool_result
             )
 
+            # ----------------------------------
+            # REFRESH DYNAMIC TOOLS
+            # ----------------------------------
+
+            if action == (
+                "accept_case"
+            ):
+
+                print(
+                    "\nRefreshing MCP tools "
+                    "after case acceptance..."
+                )
+
+                await (
+                    mcp_client
+                    .refresh_tools()
+                )
+
         except Exception as error:
 
             error_message = (
@@ -1056,7 +1177,6 @@ async def run_agent(
             )
 
             return {
-
                 "decision": (
                     "Unable to evaluate "
                     "the case"
@@ -1073,7 +1193,6 @@ async def run_agent(
                 "memory": (
                     memory.get_messages()
                 ),
-
             }
 
         # ==================================
@@ -1119,7 +1238,6 @@ async def run_agent(
     )
 
     return {
-
         "decision": (
             "Escalate for "
             "Senior Review"
@@ -1144,5 +1262,5 @@ async def run_agent(
         "memory": (
             memory.get_messages()
         ),
-
     }
+
