@@ -1,7 +1,6 @@
-"""_______________________________________"""
 MAX_STEPS = 6
 
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-flash-latest"
 
 
 REQUIRED_CASE_TOOLS = [
@@ -12,8 +11,7 @@ REQUIRED_CASE_TOOLS = [
 ]
 
 REQUIRED_RESOURCES = [
-"company://intake-policy",
-"company://required-documents",
-"company://policies/conflict",
-"company://lawyers",
+    "company://intake-policy",
+    "company://required-documents",
+    "company://policies/conflict",
 ]
