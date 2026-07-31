@@ -7,3 +7,6 @@
 | SQLite integration | ✅      |
 | Smoke tests        | ✅      |
 | Elicitation tests  | ✅      |
+| Noftications       | ✅      |
+| Http server        | ✅      |
+
