@@ -1,3 +1,5 @@
+# Test connection between MCP client and server using the local STDIO transport.
+
 import asyncio
 from .mcp_client import LawFirmMCPClient
 from .transports.stdio import StdioMCPTransport
