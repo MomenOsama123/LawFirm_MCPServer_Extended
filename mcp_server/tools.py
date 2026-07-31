@@ -229,9 +229,20 @@ async def assign_case_to_lawyer(
             )
             return {"error": f"Assignment failed and was rolled back: {e}"}
 
+    # Hide this tool again after assignment
+    logger.info("Case assigned successfully.")
+
+    await ctx.disable_components(
+        names={"assign_case_to_lawyer"},
+        components={"tool"},
+    )
+        
+    logger.info("assign_case_to_lawyer hidden again")
+
     return {
         "success": True,
         "assignment_id": assignment_id,
+        "message": "Case assigned successfully."
     }
 
 # ---------------------------
@@ -289,9 +300,19 @@ async def accept_case(
         if cursor.rowcount == 0:
             return {"error": "Case not found."}
 
+    # Expose assignment tool only to THIS session
+    logger.info("Context methods: %s", dir(ctx))
+    await ctx.enable_components(
+        names={"assign_case_to_lawyer"},
+        components={"tool"},
+    )
+
     return {
         "success": True,
-        "message": "Case accepted."
+        "message": (
+            "Case accepted. "
+            "The Assign Case To Lawyer tool has been unlocked."
+        )
     }
 
 
