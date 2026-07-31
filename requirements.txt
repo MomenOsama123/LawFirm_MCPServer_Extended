@@ -2,3 +2,4 @@ fastmcp
 pydantic
 dotenv
 tenacity
+google-genai
