@@ -1,4 +1,4 @@
-# [Ashfords Law Firm] — Intelligent Case Intake & Assignment System
+# [Ashfords & Kane Law Firm] — Intelligent Case Intake & Assignment System
 
 Ashfords Law Firm is building a secure, intelligent intake workflow for legal case intake and assignment. This repository implements an MCP (Model Context Protocol) server that gives an AI agent controlled access to legal intake data without exposing the underlying databases directly to the model.
 
@@ -28,6 +28,35 @@ The traditional intake process relies heavily on reception staff to manually han
 
 ---
 
+## 🎯 Problem Framing & System Suitability
+
+### Genuine Memory & Knowledge Gap
+A base Large Language Model (LLM) operates statelessly across interaction sessions. While standard stateless calls handle short, isolated task execution, relying exclusively on raw in-context message buffers reveals fundamental architectural limitations as intake complexity scales:
+
+- **Session Isolation & Context Decay:** Stateless agents lose execution state across multi-turn workflows. Forcing full raw context into an ever-expanding prompt causes exponential token cost growth, severe latency, and attention degradation ("lost-in-the-middle" performance drops).
+- **The Static Knowledge Boundary:** Internal model weights cannot capture runtime updates, changing system state, or evolving intake context without fine-tuning or explicit state retention.
+- **Over-reliance on Implicit Reasoning:** Standard context windows force the model to re-evaluate raw historical logs every turn rather than referencing consolidated, stateful representations of past decisions.
+
+To resolve this, the system implements an **Explicit Memory & State Architecture**—combining ephemeral in-context working memory with structured, zone-aware persistent state tracking across execution rounds.
+
+### Originality vs. Standard Worked Examples
+Many introductory agent implementations rely on simple sliding-window truncation or naive vector search (RAG) over raw interaction logs. This project implements a custom **Hybrid State Management Pipeline**:
+
+| Feature / Dimension | Standard Worked Example | Our System Architecture |
+| :--- | :--- | :--- |
+| **Context Retention** | FIFO Sliding-Window / Token Truncation | **Zone-Based Pruning:** Pins system rules and initial parameters while dynamically capping middle-turn tool outputs. |
+| **State Compression** | Raw text logs or basic token truncation | **Semantic Structuring:** Extracts and maintains structured operational state rather than relying on unstructured text logs. |
+| **Retrieval Mechanics** | Naive similarity search (Top-K) | **State-Aware Routing:** Combines explicit working memory with filtered retrieval keys to eliminate irrelevant context noise. |
+| **Evaluation Strategy** | Toy chat prompts (3–5 short turns) | **Fixed Production Benchmark:** Stress-tested against long multi-turn workflows with critical triggers buried under dense tool outputs. |
+
+### Architectural Necessity & Concern Scoping
+To maintain a lean implementation and avoid over-engineering, every concern within the state management pipeline serves a specific operational purpose:
+- **Why Zone Pruning is Essential:** Pure sliding-window approaches drop critical initial instructions during extended multi-turn tool runs. Zone Pruning retains early rules while keeping recent operational context active.
+- **Why Full Summarization is Omitted:** Benchmark evaluations demonstrated that abstractive recursive summarization stripped binary state flags and structural identifiers (dropping test accuracy significantly). Thus, structured state updates were selected over recursive summarization.
+- **Why Masking / Pruning Capping is Required:** High-volume output from tool calls (e.g., database dumps, multi-page documents) rapidly exhausts the context window. Selective pruning prevents non-essential tool noise from burying decision-critical facts.
+
+---
+
 ## 🤖 Why AI Agents and MCP?
 
 Traditional intake systems mostly collect data statically, and raw LLMs are not safe to grant direct database access. This project uses an AI agent through an MCP server so the model can assist employees safely by calling controlled tools instead of touching the database directly.
@@ -52,7 +81,7 @@ The server exposes:
 - **Elicitation support** so the agent can ask for any missing required field before performing a write action.
 - **Context Evaluation Suite** (`context_eval`) to benchmark, evaluate, and prune context windows across multi-turn intake sessions.
 
-The implementation is built around FastMCP, a SQLite database stored in [db](db), and an evaluation harness in [context_eval](context_eval).
+The implementation is built around FastMCP, a SQLite database stored in [`db`](db), and an evaluation harness in [`context_eval`](context_eval).
 
 ---
 
@@ -103,22 +132,20 @@ To balance decision accuracy with token efficiency during multi-turn agent inter
 | **RecursiveSummary** | 30% (3/10) | 1,580 | 0.01 ms | 0.08 s | ❌ Critical Fail (Loses specifics) |
 | **ZonePruning** | **100% (10/10)** | **1,633 (-7.6%)** | **0.01 ms** | **0.08 s** | **✅ Production Standard** |
 
----
-
 ### Strategy & Failure Mode Analysis
 
 #### 1. ZonePruning Strategy *(Selected Production Strategy)*
-* **Accuracy:** 100% (10/10)
-* **Mechanism:** Retains the system/first user message (`keep_first_user_msg=True`), caps intermediate tool payload outputs to 150 characters, and preserves the last $N$ turns intact (`keep_recent=2`).
-* **Why it wins:** Achieves an average token reduction of **7.6%** (saving over **46%** in token usage on high-volume tool call cases like `case_001`) while maintaining perfect decision accuracy.
+- **Accuracy:** 100% (10/10)
+- **Mechanism:** Retains the system/first user message (`keep_first_user_msg=True`), caps intermediate tool payload outputs to 150 characters, and preserves the last *N* turns intact (`keep_recent=2`).
+- **Why it wins:** Achieves an average token reduction of **7.6%** (saving over **46%** in token usage on high-volume tool call cases like `case_001`) while maintaining perfect decision accuracy.
 
 #### 2. SlidingWindow Strategy (90% Accuracy)
-* **Failure:** Failed `case_001_high_risk_waiver` (Returned `APPROVE`, expected `REJECT`).
-* **Root Cause:** Drops earlier conversation turns as new messages arrive (`max_messages=4`). Early high-risk waiver rules and client flags were truncated out, causing the model to evaluate late turns without knowing the risk constraints.
+- **Failure:** Failed `case_001_high_risk_waiver` (Returned `APPROVE`, expected `REJECT`).
+- **Root Cause:** Drops earlier conversation turns as new messages arrive (`max_messages=4`). Early high-risk waiver rules and client flags were truncated out, causing the model to evaluate late turns without knowing the risk constraints.
 
 #### 3. RecursiveSummary Strategy (30% Accuracy)
-* **Failure:** Failed 7 out of 10 test cases (`case_001`, `case_003`, `case_004`, `case_005`, `case_006`, `case_007`, `case_009`).
-* **Root Cause:** Condensed text summaries strip away exact legal micro-facts, specific party names, license numbers, and flag conditions (e.g., `"CA Bar Status: Suspended"`, `"Corporate Seal: MISSING"`, `"Conflict: Partner John Doe"`). Without explicit exact-token triggers, decision rules defaulted incorrectly to `APPROVE`.
+- **Failure:** Failed 7 out of 10 test cases (`case_001`, `case_003`, `case_004`, `case_005`, `case_006`, `case_007`, `case_009`).
+- **Root Cause:** Condensed text summaries strip away exact legal micro-facts, specific party names, license numbers, and flag conditions (e.g., `"CA Bar Status: Suspended"`, `"Corporate Seal: MISSING"`, `"Conflict: Partner John Doe"`). Without explicit exact-token triggers, decision rules defaulted incorrectly to `APPROVE`.
 
 ---
 
@@ -152,7 +179,7 @@ To balance decision accuracy with token efficiency during multi-turn agent inter
 
 ## Security Model
 
-This project deliberately avoids granting the LLM direct access to the law firm’s operational databases. Instead, the agent interacts through the MCP server using a small set of approved tools.
+This project deliberately avoids granting the LLM direct access to the law firm's operational databases. Instead, the agent interacts through the MCP server using a small set of approved tools.
 
 That design provides:
 - A narrow permission boundary.
@@ -171,6 +198,7 @@ That design provides:
 ### Install Dependencies
 ```bash
 pip install -r requirements.txt
+```
 
 ### Start the Server
 ```bash
@@ -178,6 +206,14 @@ python -m mcp_server.server
 ```
 
 The server runs over HTTP on port `8000` by default.
+
+### Run Context Evaluation Benchmark
+To test context management strategies across the transcript test suite:
+```bash
+python -m context_eval.run_eval
+```
+
+Results and strategy comparison matrices will be generated and saved to `context_eval/results/comparison.csv`.
 
 ### Optional: Inspect the Server
 You can inspect the MCP server with the MCP inspector:
@@ -189,12 +225,12 @@ npx @modelcontextprotocol/inspector
 
 ## Project Structure
 
-- [agent](agent) contains the client/agent wrapper logic.
-- [mcp_server](mcp_server) contains the FastMCP server implementation, tools, prompts, and resources.
-- [db](db) contains the SQLite database, schema, seed data, and ERD assets.
-- [context_eval]: Framework for benchmarking context strategies (FullContext, SlidingWindow,        Masking, RecursiveSummary, ZonePruning), test transcripts suite (test_suite/), and run_eval.py.
-- [elicitation_test.py](elicitation_test.py) exercises the elicitation flow.
-- [smoke_test.py](smoke_test.py) provides a simple smoke test for the server.
+- [`agent`](agent): Agent wrapper logic, MCP client integration, and agent loop execution.
+- [`mcp_server`](mcp_server): FastMCP server implementation, tools, prompts, and resources.
+- [`db`](db): SQLite database, schema, seed data, and ERD assets.
+- [`context_eval`](context_eval): Framework for benchmarking context strategies (`FullContext`, `SlidingWindow`, `Masking`, `RecursiveSummary`, `ZonePruning`), test transcript suite (`test_suite/`), and `run_eval.py`.
+- [`elicitation_test.py`](elicitation_test.py): Exercises the elicitation flow.
+- [`smoke_test.py`](smoke_test.py): Simple smoke test for the MCP server.
 
 ---
 
@@ -202,10 +238,10 @@ npx @modelcontextprotocol/inspector
 
 1. The agent reads intake information through `get_case` and `get_client`.
 2. It checks conflict and policy data via resources and `get_conflict_checks`.
-3. The context engine applies ZonePruning to compact intermediate tool responses while keeping      active context safe.
-3. It summarizes the matter using the `summarize_case` prompt.
-4. A human reviewer accepts or rejects the case with `accept_case` or `reject_case`.
-5. If accepted, the agent may use `assign_case_to_lawyer` to route the case to an active attorney.
+3. The context engine applies `ZonePruning` to compact intermediate tool responses while keeping active context safe.
+4. It summarizes the matter using the `summarize_case` prompt.
+5. A human reviewer accepts or rejects the case with `accept_case` or `reject_case`.
+6. If accepted, the agent may use `assign_case_to_lawyer` to route the case to an active attorney.
 
 ---
 
@@ -213,11 +249,11 @@ npx @modelcontextprotocol/inspector
 
 - `assign_case_to_lawyer` is hidden by default and is only exposed after a case has been accepted.
 - The server uses elicitation for missing fields rather than failing immediately on incomplete write requests.
-- ZonePruning is configured as the default production context management strategy.
+- `ZonePruning` is configured as the default production context management strategy.
 - The current implementation is designed for controlled, supervised use rather than fully autonomous case decisions.
 
 ---
 
 ## Summary
 
-This repository demonstrates how an MCP server can safely connect an AI agent to a law firm’s intake process. It provides secure access to sensitive legal data, supports structured review workflows, optimizes memory context windows for lower cost and high accuracy, and enforces a clear boundary between inspection and decision-making.
+This repository demonstrates how an MCP server can safely connect an AI agent to a law firm's intake process. It provides secure access to sensitive legal data, supports structured review workflows, optimizes memory context windows for lower cost and high accuracy, and enforces a clear boundary between inspection and decision-making.
