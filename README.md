@@ -192,6 +192,7 @@ npx @modelcontextprotocol/inspector
 - [agent](agent) contains the client/agent wrapper logic.
 - [mcp_server](mcp_server) contains the FastMCP server implementation, tools, prompts, and resources.
 - [db](db) contains the SQLite database, schema, seed data, and ERD assets.
+- [context_eval]: Framework for benchmarking context strategies (FullContext, SlidingWindow,        Masking, RecursiveSummary, ZonePruning), test transcripts suite (test_suite/), and run_eval.py.
 - [elicitation_test.py](elicitation_test.py) exercises the elicitation flow.
 - [smoke_test.py](smoke_test.py) provides a simple smoke test for the server.
 
@@ -201,6 +202,7 @@ npx @modelcontextprotocol/inspector
 
 1. The agent reads intake information through `get_case` and `get_client`.
 2. It checks conflict and policy data via resources and `get_conflict_checks`.
+3. The context engine applies ZonePruning to compact intermediate tool responses while keeping      active context safe.
 3. It summarizes the matter using the `summarize_case` prompt.
 4. A human reviewer accepts or rejects the case with `accept_case` or `reject_case`.
 5. If accepted, the agent may use `assign_case_to_lawyer` to route the case to an active attorney.
@@ -211,10 +213,11 @@ npx @modelcontextprotocol/inspector
 
 - `assign_case_to_lawyer` is hidden by default and is only exposed after a case has been accepted.
 - The server uses elicitation for missing fields rather than failing immediately on incomplete write requests.
+- ZonePruning is configured as the default production context management strategy.
 - The current implementation is designed for controlled, supervised use rather than fully autonomous case decisions.
 
 ---
 
 ## Summary
 
-This repository demonstrates how an MCP server can safely connect an AI agent to a law firm’s intake process. It provides secure access to sensitive legal data, supports structured review workflows, and enforces a clear boundary between inspection and decision-making.
+This repository demonstrates how an MCP server can safely connect an AI agent to a law firm’s intake process. It provides secure access to sensitive legal data, supports structured review workflows, optimizes memory context windows for lower cost and high accuracy, and enforces a clear boundary between inspection and decision-making.
