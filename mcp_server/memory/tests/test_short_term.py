@@ -1,6 +1,5 @@
 from mcp_server.memory.short_term import RollingBuffer, Scratchpad
 
-
 def test_pruning_buffer_does_not_affect_scratchpad():
     buffer = RollingBuffer()
     scratchpad = Scratchpad()
