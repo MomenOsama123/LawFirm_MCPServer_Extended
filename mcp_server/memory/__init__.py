@@ -6,10 +6,9 @@
     and periodic consolidation.
 """
 
-from .short_term import RollingBuffer , Scratchpad
+from .short_term import RollingBuffer, Scratchpad
 
-__all__=[
+__all__ = [
     "RollingBuffer",
-    "Scratchpad"
-    
+    "Scratchpad",
 ]

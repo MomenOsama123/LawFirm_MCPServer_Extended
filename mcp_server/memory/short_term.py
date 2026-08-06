@@ -9,9 +9,9 @@ class RollingBuffer:
     """
     def __init__(self,max_messages:int =100):
         self.max_messages=max_messages
-        self.messages.deque(maxlen=max_messages)
+        self.messages=deque(maxlen=max_messages)
 
-    def add_messages(self,role:str,content:str):
+    def add_message(self,role:str,content:str):
         self.messages.append({
             "role":role,
             "content":content
@@ -26,7 +26,7 @@ class RollingBuffer:
             return
         
         self.messages=deque(
-            list(self.messages)[-keep_last],
+            list(self.messages)[-keep_last:],
             maxlen=self.max_messages
         )
         
@@ -40,7 +40,7 @@ class RollingBuffer:
     
 
 
-class ScreatchPad:
+class Scratchpad:
         """
             Holds the agent's current reasoning state.
             Completely independent from the RollingBuffer.
@@ -52,13 +52,13 @@ class ScreatchPad:
             self.working_state={}
 
         def set_plan(self,plan:str):
-            self.current_plan=self.current_plan
+            self.current_plan=plan
         
         def set_subgoal(self,subgoal:str):
             self.active_subgoal=subgoal
 
-        def update_state(self ,Key:str,value:Any):
-            self.working_state[Key]=value
+        def update_state(self, key: str, value: Any):            
+            self.working_state[key]=value
             
         def get_state(self,key:Any):
             return self.working_state.get(key)        
