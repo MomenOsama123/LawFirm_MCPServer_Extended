@@ -8,3 +8,5 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+**/AppData/Roaming/sFree Office for Docs and PDF/4

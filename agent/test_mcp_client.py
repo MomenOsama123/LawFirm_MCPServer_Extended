@@ -1,4 +1,6 @@
-# Test connection between MCP client and server using the local STDIO transport.
+# Test connection between MCP client and server using HTTP transport.
+
+# Run: python -m agent.test_mcp_client
 
 import asyncio
 from .mcp_client import LawFirmMCPClient

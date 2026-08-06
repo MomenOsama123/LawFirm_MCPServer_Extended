@@ -236,7 +236,15 @@ async def assign_case_to_lawyer(
         names={"assign_case_to_lawyer"},
         components={"tool"},
     )
-        
+
+    # Hide this tool again after assignment
+    logger.info("Case assigned successfully.")
+
+    if hasattr(ctx, "disable_components"):
+        await ctx.disable_components(
+            names={"assign_case_to_lawyer"},
+            components={"tool"},
+        )
     logger.info("assign_case_to_lawyer hidden again")
 
     return {
@@ -300,12 +308,20 @@ async def accept_case(
         if cursor.rowcount == 0:
             return {"error": "Case not found."}
 
-    # Expose assignment tool only to THIS session
-    logger.info("Context methods: %s", dir(ctx))
-    await ctx.enable_components(
-        names={"assign_case_to_lawyer"},
-        components={"tool"},
-    )
+    # Expose assignment tool only to THIS session (safely guarded)
+    try:
+        if hasattr(ctx, "enable_components"):
+            await ctx.enable_components(
+                names={"assign_case_to_lawyer"},
+                components={"tool"},
+            )
+            logger.info("Unlocked assign_case_to_lawyer tool")
+    except RuntimeError as e:
+        logger.warning(
+            "Could not enable component (no active session context): %s", e
+        )
+    except Exception as e:
+        logger.warning("Unexpected error enabling components: %s", e)
 
     return {
         "success": True,

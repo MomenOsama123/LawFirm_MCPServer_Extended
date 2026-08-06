@@ -15,6 +15,31 @@ class FakeAcceptedResponse:
 
 class FakeContext:
 
+    async def enable_components(self, *args, **kwargs):
+        """Mock method for MCP Context component enabling."""
+        pass
+
+    async def disable_components(self, *args, **kwargs):
+        """Mock method for MCP Context component disabling."""
+        pass
+
+    async def report_progress(self, progress: float, total: float | None = None):
+        """Mock method for MCP progress reporting."""
+        pass
+
+    async def info(self, message: str):
+        print(f"[INFO] {message}")
+
+    async def warn(self, message: str):
+        print(f"[WARN] {message}")
+
+    async def error(self, message: str):
+        print(f"[ERROR] {message}")
+
+    async def read_resource(self, uri: str):
+        """Mock method for reading MCP resources."""
+        return ""
+
     async def elicit(self, message, response_type=None, **kwargs):
         print("\n===== ELICITATION =====")
         print(message)
@@ -90,4 +115,5 @@ async def main():
     print(result)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
