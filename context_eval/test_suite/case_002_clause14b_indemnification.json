@@ -1,0 +1,37 @@
+{
+  "case_id": "case_002_clause14b_indemnification",
+  "description": "Verifies clause 14B compliance deep within intermediate tool output.",
+  "expected_decision": "APPROVE",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a Legal Compliance Agent. Rules:\n1. If client is High Risk, REJECT.\n2. Must confirm Clause 14B indemnification is verified before approving."
+    },
+    {
+      "role": "user",
+      "content": "Review Partnership Agreement #1092 for Beta LLC. Client is Low Risk. Run audits."
+    },
+    {
+      "role": "assistant",
+      "content": "Querying database index chunk 1...",
+      "tool_calls": [
+        {
+          "id": "c1",
+          "function": {
+            "name": "query_db",
+            "arguments": "{\"chunk\": 1}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "c1",
+      "content": "Tool Output Chunk 1: [DB Record: Clause 14B verified fully compliant] Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. Intermediate boilerplate text. "
+    },
+    {
+      "role": "user",
+      "content": "Tool executions complete. Provide final decision."
+    }
+  ]
+}

@@ -215,17 +215,21 @@ def call_model(
         )
     )
 
-    return response.text
+    return {
+        "text": response.text,
+        "usage": response.usage_metadata,
+    }
 
 
 # ==================================
 # 5. START THE AGENT
 # ==================================
 
-async def run_agent(
+async def run_agent( #===================== stratigies modification =====================
     case_id: str,
     mcp_client: Any,
     memory: ConversationMemory | None = None,
+    strategy = None,
 ) -> dict[str, Any]:
     """
     Runs the constrained legal case intake agent.
@@ -781,20 +785,26 @@ async def run_agent(
             "to Gemini..."
         )
 
-        try:
+        try: #===================== stratigies modification =====================
 
-            gemini_response = (
-                call_model(
-                    memory.get_messages()
+            messages = memory.get_messages()
+
+            if strategy is not None:
+                messages = strategy.prepare_messages(
+                    messages,
+                    llm_call=call_model,
                 )
-            )
+
+            gemini_response = call_model(messages)
+            response_text = gemini_response.text
+            parsed = json.loads(gemini_response)
 
             print(
                 "\nGemini response:"
             )
 
             print(
-                gemini_response
+                response_text
             )
 
         except Exception as error:
