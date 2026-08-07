@@ -12,3 +12,6 @@ __pycache__/
 **/AppData/Roaming/sFree Office for Docs and PDF/4__pycache__/ 
 .pytest_cache/ 
 *.pyc 
+__pycache__/ 
+.pytest_cache/ 
+*.pyc 
