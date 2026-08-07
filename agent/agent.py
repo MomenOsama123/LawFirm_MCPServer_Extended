@@ -785,8 +785,7 @@ async def run_agent( #===================== stratigies modification ============
             "to Gemini..."
         )
 
-        try: #===================== stratigies modification =====================
-
+        try:
             messages = memory.get_messages()
 
             if strategy is not None:
@@ -795,23 +794,21 @@ async def run_agent( #===================== stratigies modification ============
                     llm_call=call_model,
                 )
 
+            # call_model() returns:
+            # {
+            #     "text": "...",
+            #     "usage": ...
+            # }
             gemini_response = call_model(messages)
-            response_text = gemini_response.text
-            parsed = json.loads(gemini_response)
 
-            print(
-                "\nGemini response:"
-            )
+            response_text = gemini_response["text"]
 
-            print(
-                response_text
-            )
+            print("\nGemini response:")
+            print(response_text)
 
         except Exception as error:
-
             error_message = (
-                "Failed to get a response "
-                "from Gemini: "
+                "Failed to get a response from Gemini: "
                 f"{error}"
             )
 
@@ -821,59 +818,27 @@ async def run_agent( #===================== stratigies modification ============
             )
 
             return {
-                "decision": (
-                    "Unable to evaluate "
-                    "the case"
-                ),
-
-                "reason": (
-                    error_message
-                ),
-
-                "steps_taken": (
-                    steps_taken
-                ),
-
-                "memory": (
-                    memory.get_messages()
-                ),
+                "decision": "Unable to evaluate the case",
+                "reason": error_message,
+                "steps_taken": steps_taken,
+                "memory": memory.get_messages(),
             }
 
-        # ----------------------------------
-        # PARSE GEMINI RESPONSE
-        # ----------------------------------
+            # ----------------------------------
+            # PARSE GEMINI RESPONSE
+            # ----------------------------------
 
         try:
+            agent_response = json.loads(response_text)
 
-            agent_response = (
-                json.loads(
-                    gemini_response
-                )
+            thought = agent_response.get("thought")
+            action = agent_response.get("action")
+            action_input = agent_response.get(
+                "action_input",
+                {},
             )
-
-            thought = (
-                agent_response.get(
-                    "thought"
-                )
-            )
-
-            action = (
-                agent_response.get(
-                    "action"
-                )
-            )
-
-            action_input = (
-                agent_response.get(
-                    "action_input",
-                    {},
-                )
-            )
-
-            final_decision = (
-                agent_response.get(
-                    "final_decision"
-                )
+            final_decision = agent_response.get(
+                "final_decision"
             )
 
         except (
@@ -882,8 +847,7 @@ async def run_agent( #===================== stratigies modification ============
         ) as error:
 
             error_message = (
-                "Gemini returned an "
-                "invalid JSON response: "
+                "Gemini returned an invalid JSON response: "
                 f"{error}"
             )
 
@@ -893,22 +857,10 @@ async def run_agent( #===================== stratigies modification ============
             )
 
             return {
-                "decision": (
-                    "Unable to evaluate "
-                    "the case"
-                ),
-
-                "reason": (
-                    error_message
-                ),
-
-                "steps_taken": (
-                    steps_taken
-                ),
-
-                "memory": (
-                    memory.get_messages()
-                ),
+                "decision": "Unable to evaluate the case",
+                "reason": error_message,
+                "steps_taken": steps_taken,
+                "memory": memory.get_messages(),
             }
 
         # ----------------------------------

@@ -124,44 +124,62 @@ async def run_synthetic_benchmark() -> List[Dict[str, Any]]:
     return results
 
 
+logger = logging.getLogger(__name__)
+
 async def run_integration_test(selected_strategy: ContextStrategy):
-    """Integration Run: Executes the real MCP agent loop with the chosen strategy."""
+    """Integration Run: Executes the real MCP agent loop using Streamable HTTP."""
+
     print("\n" + "=" * 95)
-    print(f"INTEGRATION EVALUATION: Running Real Agent with [{selected_strategy.__class__.__name__}]")
+    print(
+        f"INTEGRATION EVALUATION: Running Real Agent with "
+        f"[{selected_strategy.__class__.__name__}]"
+    )
     print("=" * 95)
 
-    # Load target test case using single transcript loader
-    sample_case = load_single_transcript("context_eval/test_suite/case_001_high_risk_waiver.json")
-    
+    sample_case = load_single_transcript(
+        "context_eval/test_suite/case_001_high_risk_waiver.json"
+    )
+
+    server_url = "http://localhost:8000/mcp"
+
+    client = None
+
     try:
-        from mcp.client.stdio import stdio_client, StdioServerParameters
-        
-        server_params = StdioServerParameters(
-            command="python",
-            args=["-m", "server.mcp_server"],
-            env=dict(os.environ)
+        from agent.transports.streamable import HTTPMCPTransport
+
+        transport = HTTPMCPTransport(server_url)
+
+        client = LawFirmMCPClient(transport)
+
+        start_time = time.perf_counter()
+
+        res = await run_agent(
+            case_id=sample_case["case_id"],
+            mcp_client=client,
+            strategy=selected_strategy,
         )
 
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with LawFirmMCPClient(read_stream, write_stream) as client:
-                start_time = time.perf_counter()
-                res = await run_agent(
-                    case_id=sample_case["case_id"],
-                    mcp_client=client,
-                    strategy=selected_strategy
-                )
-                elapsed = time.perf_counter() - start_time
-                print("✅ Integration Run Completed Successfully!")
-                print(f"   - Case ID: {sample_case['case_id']}")
-                print(f"   - Agent Decision: {res.get('decision', 'N/A')}")
-                print(f"   - Steps Taken: {res.get('steps_taken', 0)}")
-                print(f"   - Total Latency: {elapsed:.2f}s")
+        elapsed = time.perf_counter() - start_time
 
-    except ImportError:
-        logger.info("ℹ️ MCP client transport modules not initialized for live stdio run.")
-        logger.info("   Synthetic evaluation completed successfully and results were saved to CSV.")
-    except Exception as e:
-        logger.warning(f"ℹ️ Integration run bypassed or server not active: {e}")
+        print("\n✅ Integration Run Completed Successfully!")
+        print(f"   - Case ID: {sample_case['case_id']}")
+        print(f"   - Agent Decision: {res.get('decision', 'N/A')}")
+        print(f"   - Steps Taken: {res.get('steps_taken', 0)}")
+        print(f"   - Total Latency: {elapsed:.2f}s")
+
+    except Exception:
+        logger.exception(
+            f"Integration run failed at {server_url}"
+        )
+
+    finally:
+        if client is not None:
+            try:
+                await client.close()
+            except Exception:
+                logger.exception(
+                    "Failed to close MCP client cleanly."
+                )
 
 
 async def main():
