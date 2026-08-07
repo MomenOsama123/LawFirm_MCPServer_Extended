@@ -1,0 +1,12 @@
+[
+  "tests/test_e2e_mcp_client.py::test_mcp_client_handshake_and_capabilities",
+  "tests/test_e2e_mcp_client.py::test_mcp_client_tool_execution_and_failure_path",
+  "tests/test_retrieval.py::test_agentic_multihop_reasoning",
+  "tests/test_retrieval.py::test_hybrid_bm25_dense_rrf",
+  "tests/test_retrieval.py::test_naive_rag_retrieval",
+  "tests/test_self_check.py::test_post_generation_grounding_and_hallucination",
+  "tests/test_self_check.py::test_post_retrieval_relevance_check",
+  "tests/test_vector_store.py::test_chunking_and_ingestion",
+  "tests/test_vector_store.py::test_hnsw_ann_search",
+  "tests/test_vector_store.py::test_metadata_filtering"
+]
