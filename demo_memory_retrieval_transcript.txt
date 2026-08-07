@@ -1,0 +1,29 @@
+Demo transcript: single session showing memory + retrieval wiring
+
+This transcript is an example of the logs produced when running
+agent.agent_loop.handle_live_request("case-123", "Client reports a contract
+dispute involving late delivery and missing payment.")
+
+Timestamp: 2026-08-07T21:45:00
+
+[INFO] Short-term rolling buffer updated with system + user messages.
+[INFO] RAG retrieval placeholder called (not implemented): query='Client reports a contract dispute involving late delivery and missing payment.'
+[INFO] RAG retrieval returned 0 documents (placeholder).
+[INFO] Self-RAG relevance filter kept 0 documents.
+[INFO] No relevant retrieved documents to inject into memory.
+[INFO] Merged 2 rolling-buffer messages into conversation memory.
+[INFO] Calling call_model() with 4 messages.
+[INFO] (LLM call would be made here; in a live run the GEMINI API is used.)
+[INFO] Received response from the LLM.
+[INFO] Self-RAG grounding verdict: {'is_grounded': True, 'support_score': 1.0, 'hallucination_detected': False}
+
+Model response (simulated / redacted):
+{"thought": "I will retrieve case details and perform conflict checks.", "action": "get_case", "action_input": {"case_id": "case-123"}, "final_decision": null}
+
+Notes:
+- The rolling buffer and router are exercised when messages are added; the
+  MemoryRouter writes decisions to mcp_server/memory/logs/router_log.json when
+  eviction occurs (if eviction happens).
+- The RAG step is explicitly a placeholder and returns no documents. Replace
+  retrieve_with_rag() in agent/agent_loop.py to point at the project's RAG
+  implementations when ready.
