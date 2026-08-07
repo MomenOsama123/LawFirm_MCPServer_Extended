@@ -3,3 +3,5 @@ pydantic
 dotenv
 tenacity
 google-genai
+hnswlib
+pytest-asyncio

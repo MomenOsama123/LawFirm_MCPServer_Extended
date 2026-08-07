@@ -34,7 +34,7 @@ class MemoryConsolidator:
         with open(path ,"w",encoding="utf-8") as file:
             json.dump(data , file , indent=4,ensure_ascii=False)
     
-    def find_contadictions(self, episodic, semantic):
+    def find_contradictions(self, episodic):
         """
             Group episodic facts by their fact name and
             detect conflicting values.
@@ -109,42 +109,42 @@ class MemoryConsolidator:
                 fact["expired_at"] = now.isoformat()
     
     
-def run(self):
-    """
-    Execute one consolidation pass.
-    This method should be triggered periodically,
-    not during individual writes.
-    """
+    def run(self):
+        """
+        Execute one consolidation pass.
+        This method should be triggered periodically,
+        not during individual writes.
+        """
 
-    episodic = self.load_json(self.EPISODIC_STORE)
-    semantic = self.load_json(self.SEMANTIC_STORE)
-    history = self.load_json(self.HISTORY_STORE)
+        episodic = self.load_json(self.EPISODIC_STORE)
+        semantic = self.load_json(self.SEMANTIC_STORE)
+        history = self.load_json(self.HISTORY_STORE)
 
-    contradictions = self.find_contradictions(episodic)
+        contradictions = self.find_contradictions(episodic)
 
-    for fact, entries in contradictions.items():
+        for fact, entries in contradictions.items():
 
-        newest_fact, old_facts = self.resolve_contradiction(entries)
+            newest_fact, old_facts = self.resolve_contradiction(entries)
 
-        existing_fact = next(
-            (item for item in semantic if item["fact"] == fact),
-            None
-        )
-
-        if existing_fact:
-            archived = self.update_fact(
-                semantic,
-                history,
-                existing_fact,
-                newest_fact
+            existing_fact = next(
+                (item for item in semantic if item["fact"] == fact),
+                None
             )
 
-            history.append(archived)
+            if existing_fact:
+                archived = self.update_fact(
+                    semantic,
+                    history,
+                    existing_fact,
+                    newest_fact
+                )
 
-        else:
-            semantic.append(newest_fact)
-            
-            
-    self.apply_expiration_rule(semantic)
-    self.save_json(self.SEMANTIC_STORE, semantic)
-    self.save_json(self.HISTORY_STORE, history)
+                history.append(archived)
+
+            else:
+                semantic.append(newest_fact)
+                
+                
+        self.apply_expiration_rule(semantic)
+        self.save_json(self.SEMANTIC_STORE, semantic)
+        self.save_json(self.HISTORY_STORE, history)

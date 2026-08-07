@@ -8,9 +8,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 mcp = FastMCP(name="Law_Firm_MCP")
-
 
 from .tools import *
 from .prompts import *

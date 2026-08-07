@@ -2,43 +2,71 @@ from .server import mcp
 from .database import get_connection
 import uuid
 import logging
-
+import json
+from pathlib import Path
 from fastmcp import Context
-
 from .elicitation import require_fields
-
 
 logger = logging.getLogger(__name__)
 
+
+MEMORY_DIR = Path("./mcp_server/memory")  # Adjust to your memory storage path
+
+# ---------------------------
+# MEMORY RETRIEVAL TOOLS
+# ---------------------------
+
+@mcp.tool(description="Retrieve semantic memory facts relevant to a client or case.")
+def query_semantic_memory(query_key: str) -> dict:
+    """Retrieve long-term consolidated facts (e.g., client preferences, legal policies)."""
+    semantic_file = MEMORY_DIR / "semantic_memory.json"
+    if not semantic_file.exists():
+        return {"facts": []}
+
+    try:
+        with open(semantic_file, "r", encoding="utf-8") as f:
+            facts = json.load(f)
+            
+        # Filter facts matching key
+        matching = [
+            f for f in facts 
+            if query_key.lower() in str(f.get("fact", "")).lower() 
+            or query_key.lower() in str(f.get("entity", "")).lower()
+        ]
+        return {"matches": matching, "total": len(matching)}
+    except Exception as e:
+        return {"error": f"Failed to read semantic memory: {e}"}
+
+
+@mcp.tool(description="Retrieve recent conversation logs or evicted buffer items for a session.")
+def get_recent_history(limit: int = 5) -> dict:
+    """Read recent interactions recorded by the short-term memory buffer router."""
+    router_log = MEMORY_DIR / "router_decisions.json"
+    if not router_log.exists():
+        return {"history": []}
+
+    try:
+        with open(router_log, "r", encoding="utf-8") as f:
+            logs = json.load(f)
+            return {"history": logs[-limit:]}
+    except Exception as e:
+        return {"error": f"Failed to retrieve history: {e}"}
 
 # ---------------------------
 # DATABASE HEALTH CHECK
 # ---------------------------
 
-@mcp.tool(
-    description="Check whether the database connection is working."
-)
+@mcp.tool(description="Check whether the database connection is working.")
 def database_health() -> dict:
-
     logger.info("Running database_health()")
 
     with get_connection() as conn:
         cursor = conn.cursor()
-
-        tables = [
-            "party",
-            "staff",
-            "lawyer",
-            "case",
-            "document",
-            "conflict_check"
-        ]
-
+        tables = ["party", "staff", "lawyer", "case", "document", "conflict_check"]
         counts = {}
 
         for table in tables:
             sql_table = '"case"' if table == "case" else table
-
             cursor.execute(f"SELECT COUNT(*) FROM {sql_table}")
             counts[table] = cursor.fetchone()[0]
 
@@ -54,20 +82,16 @@ def database_health() -> dict:
 # PARTY / CLIENT
 # ---------------------------
 
-@mcp.tool(
-    description="Retrieve client information using the client's party ID."
-)
+@mcp.tool(description="Retrieve client information using the client's party ID.")
 def get_client(client_party_id: str) -> dict:
     with get_connection() as conn:
         cursor = conn.cursor()
-
         cursor.execute("""
             SELECT *
             FROM party
             WHERE party_id = ?
               AND party_type = 'client'
         """, (client_party_id,))
-
         row = cursor.fetchone()
 
     if row is None:
@@ -75,18 +99,14 @@ def get_client(client_party_id: str) -> dict:
 
     return dict(row)
 
-
 # ---------------------------
 # CASE RETRIEVAL
 # ---------------------------
 
-@mcp.tool(
-    description="Retrieve complete case information by case ID."
-)
+@mcp.tool(description="Retrieve complete case information by case ID.")
 def get_case(case_id: str) ->dict:
     with get_connection() as conn:
         cursor = conn.cursor()
-
         cursor.execute("""
             SELECT
                 c.*,
@@ -99,7 +119,6 @@ def get_case(case_id: str) ->dict:
                 ON c.policy_id = cp.policy_id
             WHERE c.case_id = ?
         """, (case_id,))
-
         row = cursor.fetchone()
 
     if row is None:
@@ -112,9 +131,7 @@ def get_case(case_id: str) ->dict:
 # ASSIGN CASE TO LAWYER
 # ---------------------------    
 
-@mcp.tool(
-    description="Assign a lawyer to a case."
-)
+@mcp.tool(description="Assign a lawyer to a case.")
 async def assign_case_to_lawyer(
     ctx: Context,
     case_id: str | None = None,
@@ -152,10 +169,7 @@ async def assign_case_to_lawyer(
         cursor = conn.cursor()
 
         try:
-            cursor.execute(
-                'SELECT status FROM "case" WHERE case_id = ?',
-                (case_id,)
-            )
+            cursor.execute('SELECT status FROM "case" WHERE case_id = ?', (case_id,))
             case = cursor.fetchone()
 
             if not case:
@@ -178,7 +192,6 @@ async def assign_case_to_lawyer(
                 WHERE lawyer_id = ?
                   AND status='active'
             """, (lawyer_id,))
-
             lawyer = cursor.fetchone()
 
             if not lawyer:
@@ -232,14 +245,6 @@ async def assign_case_to_lawyer(
     # Hide this tool again after assignment
     logger.info("Case assigned successfully.")
 
-    await ctx.disable_components(
-        names={"assign_case_to_lawyer"},
-        components={"tool"},
-    )
-
-    # Hide this tool again after assignment
-    logger.info("Case assigned successfully.")
-
     if hasattr(ctx, "disable_components"):
         await ctx.disable_components(
             names={"assign_case_to_lawyer"},
@@ -257,9 +262,7 @@ async def assign_case_to_lawyer(
 # ACCEPT CASE
 # ---------------------------
 
-@mcp.tool(
-    description="Accept a case after review."
-)
+@mcp.tool(description="Accept a case after review.")
 async def accept_case(
     ctx: Context,
     case_id: str | None = None,
@@ -336,9 +339,7 @@ async def accept_case(
 # REJECT CASE
 # ---------------------------
 
-@mcp.tool(
-    description="Reject a case after review."
-)
+@mcp.tool(description="Reject a case after review.")
 async def reject_case(
     ctx: Context,
     case_id: str | None = None,
@@ -397,20 +398,15 @@ async def reject_case(
 # CONFLICT CHECK
 # ---------------------------
 
-@mcp.tool(
-    description="Retrieve all conflict check records for a case."
-)
+@mcp.tool(description="Retrieve all conflict check records for a case.")
 def get_conflict_checks(case_id: str) -> list:
-
     with get_connection() as conn:
         cursor = conn.cursor()
-
         cursor.execute("""
             SELECT *
             FROM conflict_check
             WHERE case_id = ?
         """, (case_id,))
-
         rows = cursor.fetchall()
 
     return [dict(r) for r in rows]
@@ -420,20 +416,15 @@ def get_conflict_checks(case_id: str) -> list:
 # LAWYER DETAILS
 # ---------------------------
 
-@mcp.tool(
-    description="Retrieve lawyer details."
-)
+@mcp.tool(description="Retrieve lawyer details.")
 def get_lawyer(lawyer_id: str) -> dict:
-
     with get_connection() as conn:
         cursor = conn.cursor()
-
         cursor.execute("""
             SELECT *
             FROM lawyer
             WHERE lawyer_id = ?
         """, (lawyer_id,))
-
         row = cursor.fetchone()
 
     if row is None:
