@@ -8,44 +8,9 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from .config import REQUIRED_CASE_TOOLS, REQUIRED_RESOURCES, MODEL_NAME, MAX_STEPS
 from .memory import ConversationMemory
 
-from mcp_server.memory.short_term import RollingBuffer
-from mcp_server.memory.router import MemoryRouter
-from mcp_server.memory.consolidation import MemoryConsolidator
-from mcp_server.memory.scheduler import ConsolidationScheduler
-
 load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-
-# Initialize memory infrastructure
-router = MemoryRouter(storage_dir="./mcp_server/memory")
-buffer = RollingBuffer(capacity=10, router=router)
-consolidator = MemoryConsolidator(storage_dir="./mcp_server/memory")
-
-# Start background consolidation job
-scheduler = ConsolidationScheduler(consolidator, interval_seconds=300)
-scheduler.start()
-
-
-async def process_user_turn(user_input: str, ctx=None) -> str:
-    # 1. Add user message to short-term buffer
-    evicted_user = buffer.add_message({"role": "user", "content": user_input})
-    if evicted_user:
-        router.route(evicted_user)
-
-    # 2. Fetch context (combining rolling buffer + relevant semantic memory)
-    current_context = buffer.get_context()
-
-    # 3. Call model Gemini  with tool definitions
-    response = await call_model(current_context)
-
-    # 4. Add assistant response back to short-term buffer
-    evicted_assistant = buffer.add_message({"role": "assistant", "content": response})
-    if evicted_assistant:
-        router.route(evicted_assistant)
-
-    return response
 
 # ==================================
 # 3. AGENT SYSTEM PROMPT

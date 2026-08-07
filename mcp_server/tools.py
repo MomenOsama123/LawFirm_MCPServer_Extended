@@ -2,55 +2,10 @@ from .server import mcp
 from .database import get_connection
 import uuid
 import logging
-import json
-from pathlib import Path
 from fastmcp import Context
 from .elicitation import require_fields
 
 logger = logging.getLogger(__name__)
-
-
-MEMORY_DIR = Path("./mcp_server/memory")  # Adjust to your memory storage path
-
-# ---------------------------
-# MEMORY RETRIEVAL TOOLS
-# ---------------------------
-
-@mcp.tool(description="Retrieve semantic memory facts relevant to a client or case.")
-def query_semantic_memory(query_key: str) -> dict:
-    """Retrieve long-term consolidated facts (e.g., client preferences, legal policies)."""
-    semantic_file = MEMORY_DIR / "semantic_memory.json"
-    if not semantic_file.exists():
-        return {"facts": []}
-
-    try:
-        with open(semantic_file, "r", encoding="utf-8") as f:
-            facts = json.load(f)
-            
-        # Filter facts matching key
-        matching = [
-            f for f in facts 
-            if query_key.lower() in str(f.get("fact", "")).lower() 
-            or query_key.lower() in str(f.get("entity", "")).lower()
-        ]
-        return {"matches": matching, "total": len(matching)}
-    except Exception as e:
-        return {"error": f"Failed to read semantic memory: {e}"}
-
-
-@mcp.tool(description="Retrieve recent conversation logs or evicted buffer items for a session.")
-def get_recent_history(limit: int = 5) -> dict:
-    """Read recent interactions recorded by the short-term memory buffer router."""
-    router_log = MEMORY_DIR / "router_decisions.json"
-    if not router_log.exists():
-        return {"history": []}
-
-    try:
-        with open(router_log, "r", encoding="utf-8") as f:
-            logs = json.load(f)
-            return {"history": logs[-limit:]}
-    except Exception as e:
-        return {"error": f"Failed to retrieve history: {e}"}
 
 # ---------------------------
 # DATABASE HEALTH CHECK
