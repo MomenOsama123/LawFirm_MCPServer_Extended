@@ -1,0 +1,14 @@
+[
+    [
+        {
+            "fact": "allergy",
+            "value": "None",
+            "timestamp": "2026-01-01T10:00:00"
+        },
+        {
+            "fact": "allergy",
+            "value": "Penicillin",
+            "timestamp": "2026-05-01T15:30:00"
+        }
+    ]
+]
