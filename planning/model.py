@@ -11,6 +11,9 @@ class Task(BaseModel):
     instruction: str = Field(min_length=5)
     depends_on: list[str] = Field(default_factory=list)
 
+    tool_name: str | None = None
+    arguments: dict | None = None
+
 
 class Plan(BaseModel):
     model_config = ConfigDict(extra="forbid")

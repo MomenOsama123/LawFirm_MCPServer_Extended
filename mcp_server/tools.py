@@ -5,6 +5,10 @@ import logging
 from fastmcp import Context
 from .elicitation import require_fields
 
+from planning.decomposition.static_decomposition import decompose_goal, execute_plan, final_output
+from planning.decomposition.dynamic_decomposition import dynamic_decomposition
+from planning.llm import llm
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------
@@ -386,3 +390,19 @@ def get_lawyer(lawyer_id: str) -> dict:
         return {"error": "Lawyer not found."}
 
     return dict(row)
+
+
+# ---------------------------
+# PLANNING / DECOMPOSITION
+# ---------------------------
+
+@mcp.tool(description="Static task decomposition using a validated DAG")
+def static_task_decomposition(goal: str) -> str:
+    plan = decompose_goal(goal, llm)
+    outputs = execute_plan(plan, llm)
+    return final_output(plan, outputs)
+
+@mcp.tool(description="Dynamic task decomposition using adaptive planning")
+def dynamic_task_decomposition(goal: str) -> list[tuple[str, str]]:
+    return dynamic_decomposition(goal, llm)
+
