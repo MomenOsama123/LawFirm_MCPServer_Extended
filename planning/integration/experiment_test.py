@@ -13,6 +13,8 @@ from planning.decomposition.static_decomposition import (
 
 from planning.decomposition.dynamic_decomposition import dynamic_decomposition
 
+from planning.decomposition.dag import validate_and_sort
+
 from ..llm import llm
 
 
@@ -83,6 +85,16 @@ async def run_experiment():
         print(f"  Tool        : {task.tool_name}")
         print(f"  Arguments   : {task.arguments}")
         print(f"  Depends on  : {task.depends_on}")
+
+    # --------------------------------------------------
+    # Validate DAG BEFORE execution
+    # --------------------------------------------------
+
+    order = validate_and_sort(
+        [task.model_dump() for task in plan.tasks]
+    )
+
+    print(f"\nValid DAG: {order}")
 
     static_outputs = await execute_plan(
         plan,
