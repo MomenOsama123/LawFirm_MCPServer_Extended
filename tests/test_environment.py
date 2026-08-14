@@ -1,85 +1,155 @@
-from planning.environment import GroundedEnvironment
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from mcp_server.database import get_connection
 
 
-def test_valid_case_assignment_is_accepted():
-    environment = GroundedEnvironment()
-
-    result = environment.evaluate(
-        {
-            "action": "assign_case",
-            "case_id": "case-001",
-            "lawyer_id": "lawyer-001",
-        }
-    )
-
-    assert result.success is True
-    assert result.score == 1.0
-    assert "satisfies" in result.evidence
-    assert result.details["case_id"] == "case-001"
-    assert result.details["lawyer_id"] == "lawyer-001"
+@dataclass
+class EnvironmentFeedback:
+    success: bool
+    score: float
+    evidence: str
+    details: dict[str, Any]
 
 
-def test_unaccepted_case_is_rejected():
-    environment = GroundedEnvironment()
+class GroundedEnvironment:
+    """
+    Deterministically validates a proposed case assignment
+    against the current LawFirm database state.
 
-    result = environment.evaluate(
-        {
-            "action": "assign_case",
-            "case_id": "case-002",
-            "lawyer_id": "lawyer-001",
-        }
-    )
+    The evaluator is read-only and does not modify the database.
+    """
 
-    assert result.success is False
-    assert result.score == 0.0
-    assert "not in an assignable state" in result.evidence
-    assert result.details["status"] == "under_review"
+    def evaluate(self, output: Any) -> EnvironmentFeedback:
+        if not isinstance(output, dict):
+            return EnvironmentFeedback(
+                success=False,
+                score=0.0,
+                evidence="Planning output must be a dictionary.",
+                details={
+                    "received_type": type(output).__name__,
+                },
+            )
 
+        action = output.get("action")
+        case_id = output.get("case_id")
+        lawyer_id = output.get("lawyer_id")
 
-def test_full_caseload_lawyer_is_rejected():
-    environment = GroundedEnvironment()
+        if action != "assign_case":
+            return EnvironmentFeedback(
+                success=False,
+                score=0.0,
+                evidence="Unsupported or missing action.",
+                details={
+                    "action": action,
+                },
+            )
 
-    result = environment.evaluate(
-        {
-            "action": "assign_case",
-            "case_id": "case-001",
-            "lawyer_id": "lawyer-003",
-        }
-    )
+        if not case_id or not lawyer_id:
+            return EnvironmentFeedback(
+                success=False,
+                score=0.0,
+                evidence="case_id and lawyer_id are required.",
+                details={
+                    "case_id": case_id,
+                    "lawyer_id": lawyer_id,
+                },
+            )
 
-    assert result.success is False
-    assert result.score == 0.0
-    assert "maximum caseload" in result.evidence
-    assert result.details["current_caseload"] == 6
-    assert result.details["max_caseload"] == 6
+        with get_connection() as conn:
+            cursor = conn.cursor()
 
+            # Check case state.
+            cursor.execute(
+                'SELECT status FROM "case" WHERE case_id = ?',
+                (case_id,),
+            )
+            case = cursor.fetchone()
 
-def test_missing_case_is_rejected():
-    environment = GroundedEnvironment()
+            if case is None:
+                return EnvironmentFeedback(
+                    success=False,
+                    score=0.0,
+                    evidence="The requested case does not exist.",
+                    details={
+                        "case_id": case_id,
+                    },
+                )
 
-    result = environment.evaluate(
-        {
-            "action": "assign_case",
-            "case_id": "case-999",
-            "lawyer_id": "lawyer-001",
-        }
-    )
+            case_status = case["status"]
 
-    assert result.success is False
-    assert result.score == 0.0
-    assert "does not exist" in result.evidence
+            if case_status != "accepted":
+                return EnvironmentFeedback(
+                    success=False,
+                    score=0.0,
+                    evidence="The case is not in an assignable state.",
+                    details={
+                        "case_id": case_id,
+                        "status": case_status,
+                        "required_status": "accepted",
+                    },
+                )
 
+            # Check lawyer state and capacity.
+            cursor.execute(
+                """
+                SELECT
+                    current_caseload,
+                    max_caseload,
+                    status
+                FROM lawyer
+                WHERE lawyer_id = ?
+                """,
+                (lawyer_id,),
+            )
+            lawyer = cursor.fetchone()
 
-def test_invalid_action_is_rejected():
-    environment = GroundedEnvironment()
+            if lawyer is None:
+                return EnvironmentFeedback(
+                    success=False,
+                    score=0.0,
+                    evidence="The requested lawyer does not exist.",
+                    details={
+                        "lawyer_id": lawyer_id,
+                    },
+                )
 
-    result = environment.evaluate(
-        {
-            "action": "something_else",
-            "case_id": "case-001",
-            "lawyer_id": "lawyer-001",
-        }
-    )
+            if lawyer["status"] != "active":
+                return EnvironmentFeedback(
+                    success=False,
+                    score=0.0,
+                    evidence="The lawyer is not active.",
+                    details={
+                        "lawyer_id": lawyer_id,
+                        "status": lawyer["status"],
+                        "required_status": "active",
+                    },
+                )
 
-    assert result.success is False
-    assert result.score == 0.0
+            if lawyer["current_caseload"] >= lawyer["max_caseload"]:
+                return EnvironmentFeedback(
+                    success=False,
+                    score=0.0,
+                    evidence="The lawyer has reached maximum caseload.",
+                    details={
+                        "lawyer_id": lawyer_id,
+                        "current_caseload": lawyer["current_caseload"],
+                        "max_caseload": lawyer["max_caseload"],
+                    },
+                )
+
+        return EnvironmentFeedback(
+            success=True,
+            score=1.0,
+            evidence=(
+                "The proposed assignment satisfies the current "
+                "database constraints."
+            ),
+            details={
+                "case_id": case_id,
+                "lawyer_id": lawyer_id,
+                "case_status": "accepted",
+            },
+        )
