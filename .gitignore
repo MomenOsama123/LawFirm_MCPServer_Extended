@@ -1,27 +1,27 @@
-# Python bytecode and cache folders
+# ==========================
+# Python Bytecode and Cache
+# ==========================
 __pycache__/
+*.py[cod]
+*$py.class
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
 
-# Environment files containing secrets/API keys
+# ==========================
+# Environment & Secrets
+# ==========================
 .env
 .env.*
 !.env.example
 
-**/AppData/Roaming/sFree Office for Docs and PDF/4__pycache__/ 
-.pytest_cache/ 
-*.pyc 
-__pycache__/ 
-.pytest_cache/ 
-*.pyc 
-# Python bytecode and cache directories
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
+# ==========================
+# Operating System Files
+# ==========================
 .DS_Store
-.env
-__pycache__/
-*.pyc
-.env
+
+# ==========================
+# Miscellaneous / Specific
+# ==========================
+**/AppData/Roaming/sFree Office for Docs and PDF/4__pycache__/

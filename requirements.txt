@@ -5,3 +5,5 @@ tenacity
 google-genai
 hnswlib
 pytest-asyncio
+networkx
+langchain_google_genai
