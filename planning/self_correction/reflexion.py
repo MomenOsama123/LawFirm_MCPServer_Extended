@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+
 def _content_to_text(response: Any) -> str:
     content = getattr(response, "content", response)
 
@@ -22,17 +23,18 @@ def _content_to_text(response: Any) -> str:
 
     return str(content).strip()
 
+
 @dataclass
 class ReflexionTrial:
     trial_number: int
-    output: str
+    output: Any
     success: bool
     reflection: str | None
 
 
 @dataclass
 class ReflexionResult:
-    final_output: str
+    final_output: Any
     success: bool
     trials: list[ReflexionTrial]
     reflections: list[str]
@@ -44,12 +46,14 @@ def reflexion(
     evaluator: Any,
     max_trials: int = 3,
     reflection_buffer_size: int = 3,
-) -> ReflexionResult:    
+) -> ReflexionResult:
     """
-        Run a Reflexion loop with a capped episodic reflection buffer.
-        The LLM generates each trial and reflection.
-        The evaluator determines whether the trial actually succeeded.
+    Run a Reflexion loop with a capped episodic reflection buffer.
+
+    The LLM generates each trial and reflection.
+    The evaluator determines whether the trial actually succeeded.
     """
+
     if max_trials < 1:
         raise ValueError("max_trials must be positive")
 
@@ -59,7 +63,7 @@ def reflexion(
     reflections: list[str] = []
     trials: list[ReflexionTrial] = []
 
-    best_output = ""
+    best_output: Any = ""
     best_score = float("-inf")
 
     for trial_number in range(1, max_trials + 1):
@@ -98,7 +102,14 @@ Apply the previous lessons without discussing them.
             ]
         )
 
-        output = _content_to_text(response)
+        # Preserve structured outputs such as dictionaries/lists.
+        # Text responses are normalized to strings.
+        raw_content = getattr(response, "content", response)
+
+        if isinstance(raw_content, (dict, list)):
+            output = raw_content
+        else:
+            output = _content_to_text(response)
 
         if not output:
             raise RuntimeError("The chat model returned an empty response.")
@@ -107,7 +118,13 @@ Apply the previous lessons without discussing them.
         feedback = evaluator(output)
 
         success = bool(feedback.success)
-        score = float(getattr(feedback, "score", 1.0 if success else 0.0))
+        score = float(
+            getattr(
+                feedback,
+                "score",
+                1.0 if success else 0.0,
+            )
+        )
 
         trial = ReflexionTrial(
             trial_number=trial_number,
@@ -165,7 +182,9 @@ Start with "I".
         reflection = _content_to_text(response)
 
         if not reflection:
-            raise RuntimeError("The reflection model returned an empty response.")
+            raise RuntimeError(
+                "The reflection model returned an empty response."
+            )
 
         trial.reflection = reflection
 
