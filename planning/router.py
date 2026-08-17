@@ -1,3 +1,5 @@
+# python -m planning.router
+
 """
 planning/router.py
 

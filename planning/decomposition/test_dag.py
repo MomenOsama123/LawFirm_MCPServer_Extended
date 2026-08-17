@@ -23,3 +23,6 @@ def test_valid_graph_is_sorted():
     result = validate_and_sort(tasks)
 
     assert result == ["A", "B", "C"]
+
+
+# python -m pytest planning/decomposition/test_dag.py -v
