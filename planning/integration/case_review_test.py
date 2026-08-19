@@ -13,7 +13,6 @@ from planning.decomposition.static_decomposition import (
     final_output,
 )
 
-from ..llm import llm
 
 
 ARTIFACTS_DIR = Path("artifacts")
@@ -36,6 +35,8 @@ using staff member {DECIDED_BY} and provide an appropriate decision reason.
 
 
 async def main():
+    from ..llm import llm
+
     print("=" * 60)
     print("LAW FIRM CASE REVIEW - STATIC DECOMPOSITION TEST")
     print("=" * 60)

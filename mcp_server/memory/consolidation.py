@@ -143,6 +143,11 @@ class MemoryConsolidator:
 
             else:
                 semantic.append(newest_fact)
+                for old_fact in old_facts:
+                    archived = old_fact.copy()
+                    archived["status"] = "superseded"
+                    archived["superseded_at"] = datetime.now().isoformat()
+                    history.append(archived)
                 
                 
         self.apply_expiration_rule(semantic)

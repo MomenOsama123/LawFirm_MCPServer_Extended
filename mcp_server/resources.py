@@ -1,4 +1,4 @@
-from .server import mcp
+from .mcp_instance import mcp
 
 
 @mcp.resource(

@@ -17,7 +17,6 @@ from planning.decomposition.dynamic_decomposition import dynamic_decomposition
 
 from planning.decomposition.dag import validate_and_sort
 
-from ..llm import llm
 
 
 # Ensure artifacts directory exists
@@ -41,6 +40,8 @@ using staff member {DECIDED_BY} and provide an appropriate decision reason.
 
 
 async def run_experiment():
+    from ..llm import llm
+
 
     print("=" * 60)
     print("LAW FIRM DECOMPOSITION EXPERIMENT")

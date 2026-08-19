@@ -1,4 +1,4 @@
-from .server import mcp
+from .mcp_instance import mcp
 from .database import get_connection
 import uuid
 import logging
@@ -8,7 +8,6 @@ import sqlite3
 
 from planning.decomposition.static_decomposition import decompose_goal, execute_plan, final_output
 from planning.decomposition.dynamic_decomposition import dynamic_decomposition
-from planning.llm import llm
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +90,6 @@ def get_case(case_id: str) ->dict:
 # ASSIGN CASE TO LAWYER
 # ---------------------------    
 
-@mcp.tool(description="Assign a lawyer to a case.")
 async def assign_case_to_lawyer(
     ctx: Context,
     case_id: str | None = None,
@@ -205,11 +203,7 @@ async def assign_case_to_lawyer(
     # Hide this tool again after assignment
     logger.info("Case assigned successfully.")
 
-    if hasattr(ctx, "disable_components"):
-        await ctx.disable_components(
-            names={"assign_case_to_lawyer"},
-            components={"tool"},
-        )
+    
     logger.info("assign_case_to_lawyer hidden again")
 
     return {
@@ -431,11 +425,15 @@ def get_lawyer(lawyer_id: str) -> dict:
 
 @mcp.tool(description="Static task decomposition using a validated DAG")
 def static_task_decomposition(goal: str) -> str:
+    from planning.llm import llm
+
     plan = decompose_goal(goal, llm)
     outputs = execute_plan(plan, llm)
     return final_output(plan, outputs)
 
 @mcp.tool(description="Dynamic task decomposition using adaptive planning")
 def dynamic_task_decomposition(goal: str) -> list[tuple[str, str]]:
+    from planning.llm import llm
+
     return dynamic_decomposition(goal, llm)
 
