@@ -117,3 +117,40 @@ CREATE INDEX idx_conflict_check_batch ON conflict_check(batch_job_id);
 CREATE INDEX idx_case_assignment_case ON case_assignment(case_id);
 CREATE INDEX idx_case_assignment_lawyer ON case_assignment(lawyer_id);
 CREATE INDEX idx_audit_log_entity ON audit_log(entity_type, entity_id);
+
+
+CREATE TABLE graph_checkpoint(
+    checkpoint_id           TEXT PRIMARY KEY,
+    thread_id               TEXT NOT NULL,
+    checkpoint_ns           TEXT NOT NULL DEFAULT '',
+    parent_checkpoint_id    TEXT,
+    checkpoint_type         TEXT NOT NULL,
+    checkpoint_data         BLOB NOT NULL,
+    metadata_type           TEXT NOT NULL,
+    metadata_data           BLOB NOT NULL,
+    created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_graph_checkpoint_thread
+    ON graph_checkpoint(thread_id, checkpoint_ns);
+
+CREATE TABLE graph_checkpoint_write (
+    thread_id               TEXT NOT NULL,
+    checkpoint_ns           TEXT NOT NULL DEFAULT '',
+    checkpoint_id           TEXT NOT NULL,
+    task_id                 TEXT NOT NULL,
+    task_path               TEXT NOT NULL DEFAULT '',
+    write_index             INTEGER NOT NULL,
+    channel                 TEXT NOT NULL,
+    value_type              TEXT NOT NULL,
+    value_data              BLOB NOT NULL,
+
+    PRIMARY KEY (
+        thread_id,
+        checkpoint_ns,
+        checkpoint_id,
+        task_id,
+        task_path,
+        write_index
+    )
+);
