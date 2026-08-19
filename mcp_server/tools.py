@@ -4,6 +4,7 @@ import uuid
 import logging
 from fastmcp import Context
 from .elicitation import require_fields
+import sqlite3
 
 from planning.decomposition.static_decomposition import decompose_goal, execute_plan, final_output
 from planning.decomposition.dynamic_decomposition import dynamic_decomposition
@@ -247,30 +248,39 @@ async def accept_case(
     decided_by = values["decided_by"]
     decision_reason = values["decision_reason"]
 
-    with get_connection() as conn:
-        cursor = conn.cursor()
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT case_id FROM "case" WHERE case_id = ?', (case_id,)
+            )
 
-        cursor.execute("""
-            UPDATE "case"
-            SET
-                status='accepted',
-                decision_reason=?,
-                decided_by=?,
-                decision_at=datetime('now'),
-                updated_at=datetime('now')
-            WHERE case_id=?
-        """, (
-            decision_reason,
-            decided_by,
-            case_id
-        ))
+            if cursor.fetchone() is None:
+                return {"success": False, "error": "Case not found.", "code": "CASE_NOT_FOUND",}
 
-        conn.commit()
+            cursor.execute(
+                "SELECT staff_id FROM staff WHERE staff_id = ?", (decided_by,)
+            )
 
-        if cursor.rowcount == 0:
-            return {"error": "Case not found."}
+            if cursor.fetchone() is None:
+                return {"success": False, "error": "Deciding staff member not found.", "code":"STAFF_NOT_FOUND",}
 
-    # Expose assignment tool only to THIS session (safely guarded)
+            cursor.execute("""
+                UPDATE "case"
+                SET
+                    status='accepted',
+                    decision_reason=?,
+                    decided_by=?,
+                    decision_at=datetime('now'),
+                    updated_at=datetime('now')
+                WHERE case_id=?
+            """, (
+                decision_reason, decided_by, case_id))
+            conn.commit()
+    except sqlite3.Error as exc:
+        logger.exception("Failed to accept case %s", case_id)
+        return {"success": False, "error": f"Database error: {exc}", "code": "DATABASE_ERROR",}
+
     try:
         if hasattr(ctx, "enable_components"):
             await ctx.enable_components(
@@ -278,20 +288,18 @@ async def accept_case(
                 components={"tool"},
             )
             logger.info("Unlocked assign_case_to_lawyer tool")
-    except RuntimeError as e:
+
+    except RuntimeError as exc:
         logger.warning(
-            "Could not enable component (no active session context): %s", e
-        )
-    except Exception as e:
-        logger.warning("Unexpected error enabling components: %s", e)
+            "Could not enable component (no active session context): %s", exc)
+    except Exception as exc:
+        logger.warning("Unexpected error enabling components: %s", exc)
 
     return {
         "success": True,
-        "message": (
-            "Case accepted. "
-            "The Assign Case To Lawyer tool has been unlocked."
-        )
-    }
+        "case_id": case_id,
+        "status": "accepted",
+        "message": "Case accepted. The Assign Case To Lawyer tool has been unlocked."}
 
 
 # ---------------------------
@@ -324,34 +332,45 @@ async def reject_case(
     decided_by = values["decided_by"]
     decision_reason = values["decision_reason"]
 
-    with get_connection() as conn:
-        cursor = conn.cursor()
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT case_id FROM "case" WHERE case_id = ?', (case_id,)
+            )
 
-        cursor.execute("""
-            UPDATE "case"
-            SET
-                status='rejected',
-                decision_reason=?,
-                decided_by=?,
-                decision_at=datetime('now'),
-                updated_at=datetime('now')
-            WHERE case_id=?
-        """, (
-            decision_reason,
-            decided_by,
-            case_id,
-        ))
+            if cursor.fetchone() is None:
+                return {"success": False, "error": "Case not found.", "code":"CASE_NOT_FOUND",}
+
+            cursor.execute(
+                "SELECT staff_id FROM staff WHERE staff_id = ?", (decided_by,)
+            )
+
+            if cursor.fetchone() is None:
+                return {"success": False, "error": "Staff member not found.", "code": "STAFF_NOT_FOUND",}
+            
+            cursor.execute("""
+                UPDATE "case"
+                SET
+                    status='rejected',
+                    decision_reason=?,
+                    decided_by=?,
+                    decision_at=datetime('now'),
+                    updated_at=datetime('now')
+                WHERE case_id=?
+            """, (
+                decision_reason,
+                decided_by,
+                case_id,
+            ))
 
         conn.commit()
 
-        if cursor.rowcount == 0:
-            return {"error": "Case not found."}
+    except sqlite3.Error as exc:
+        logger.exception("Failed to reject case %s", case_id)
+        return {"success": False, "error": f"Database error: {exc}", "code":"DATABASE_ERROR",}
 
-    return {
-        "success": True,
-        "message": "Case rejected.",
-    }
-
+    return {"success": True, "case_id": case_id, "status": "rejected", "message": "Case rejected.",}
 
 # ---------------------------
 # CONFLICT CHECK
@@ -359,17 +378,29 @@ async def reject_case(
 
 @mcp.tool(description="Retrieve all conflict check records for a case.")
 def get_conflict_checks(case_id: str) -> list:
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT *
-            FROM conflict_check
-            WHERE case_id = ?
-        """, (case_id,))
-        rows = cursor.fetchall()
+    if not case_id or not case_id.strip():
+        return {"success": False, "error": "Case ID is required.", "code":"INVALID_INPUT",}
 
-    return [dict(r) for r in rows]
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT case_id from "case" WHERE case_id = ?', (case_id,))
+            if cursor.fetchone() is None:
+                return {"success": False, "error": "Case not found.", "code": "CASE_NOT_FOUND",}
+            cursor.execute("""
+                SELECT *
+                FROM conflict_check
+                WHERE case_id = ?
+                ORDER BY checked_at ASC
+            """, (case_id,))
 
+            return [dict(r) for r in cursor.fetchall()]
+
+    except sqlite3.Error as exc:
+        logger.exception("Failed to retrieve conflict checks for case %s", case_id)
+        return {"success": False, "error": f"Database error: {exc}", "code": "DATABASE_ERROR",}
+    
 
 # ---------------------------
 # LAWYER DETAILS
@@ -377,6 +408,8 @@ def get_conflict_checks(case_id: str) -> list:
 
 @mcp.tool(description="Retrieve lawyer details.")
 def get_lawyer(lawyer_id: str) -> dict:
+    if not lawyer_id or not lawyer_id.strip():
+        return {"success": False, "error": "Lawyer ID is required."}
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
