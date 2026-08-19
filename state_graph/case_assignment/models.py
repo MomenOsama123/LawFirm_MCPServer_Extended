@@ -1,15 +1,23 @@
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import Any, TypedDict
+
 from .states import CaseAssignmentState
 
-class CaseAssignmentStateData(BaseModel):
+
+class CaseAssignmentGraphState(TypedDict, total=False):
     case_id: str
-    case_value: float = 0.0
-    is_vip: bool = False
-    assigned_attorney_id: Optional[str] = None
-    declined_attorney_ids: List[str] = []
-    decline_count: int = 0
-    current_state: CaseAssignmentState = CaseAssignmentState.PROPOSED
-    hitl_reason: Optional[str] = None
-    ticket_id: Optional[str] = None
-    ticket_status: Optional[str] = None # "open", "investigating", "resolved"
+    case_value: float
+    is_vip: bool
+
+    assigned_attorney_id: str | None
+    declined_attorney_ids: list[str]
+
+    decline_count: int
+
+    current_state: CaseAssignmentState
+
+    hitl_reason: str | None
+
+    ticket_id: str | None
+    ticket_status: str | None
+
+    metadata: dict[str, Any]
