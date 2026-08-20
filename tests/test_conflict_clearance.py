@@ -64,13 +64,14 @@ def test_conflict_clearance_recovers_after_process_kill(tmp_path):
 
     assert crashed.returncode == 42
 
-    first_run_nodes = log_file.read_text(
-        encoding="utf-8"
-    ).splitlines()
+    first_run_nodes = log_file.read_text(encoding="utf-8").splitlines()
 
     assert first_run_nodes == [
         "intake",
-        "running_conflict_check",
+        "decompose_conflict_check",
+        "search",
+        "evaluate",
+        "draft_memo",
         "awaiting_partner_signoff",
     ]
 
@@ -109,7 +110,10 @@ def test_conflict_clearance_recovers_after_process_kill(tmp_path):
     # intake and running_conflict_check were completed before the crash
     # and therefore must not execute again.
     assert all_nodes.count("intake") == 1
-    assert all_nodes.count("running_conflict_check") == 1
+    assert all_nodes.count("decompose_conflict_check") == 1
+    assert all_nodes.count("search") == 1
+    assert all_nodes.count("evaluate") == 1
+    assert all_nodes.count("draft_memo") == 1
 
     # awaiting_partner_signoff started once before the crash
     # and once after recovery.
@@ -130,3 +134,35 @@ def test_conflict_clearance_recovers_after_process_kill(tmp_path):
     conn.close()
 
     assert checkpoint_count_after > checkpoint_count_before
+
+def test_conflict_check_generates_ordered_checklist(tmp_path):
+    db_path = tmp_path / "case_intake_test.db"
+    log_file = tmp_path / "nodes.log"
+
+    create_test_database(db_path)
+
+    result = run_worker(
+        db_path,
+        log_file,
+        "normal",
+    )
+
+    assert result.returncode == 0
+
+    assert (
+        "CHECKLIST: ['search', 'evaluate', 'draft_memo']"
+        in result.stdout
+    )
+
+    nodes = log_file.read_text(
+        encoding="utf-8"
+    ).splitlines()
+
+    assert nodes[:6] == [
+        "intake",
+        "decompose_conflict_check",
+        "search",
+        "evaluate",
+        "draft_memo",
+        "awaiting_partner_signoff",
+    ]
