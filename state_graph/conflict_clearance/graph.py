@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import TypedDict
+from typing import TypedDict, List
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from state_graph.checkpointer import DBCheckpointSaver
+from project_root.rag.policy_retriever import retrieve_policy_docs
 
 class ConflictState(TypedDict):
     case_id: str
@@ -12,6 +13,7 @@ class ConflictState(TypedDict):
     check_list: list[str]
     search_results: list[str]
     evaluation: str
+    policy_docs: list[dict]
     memo: str
 
 
@@ -42,15 +44,32 @@ def evaluate_node(state: ConflictState) -> dict:
         "evaluation": "No conflict identified.",
     }
 
+def retrieve_policy_node(state: ConflictState) -> dict:
+    """Pull relevant conflict-of-interest policy docs via the shared RAG stack."""
+    query = "conflict of interest policy evaluation rules for case review"
+    docs = retrieve_policy_docs(query, top_k=2)
+    return {"policy_docs": docs}
+
 
 def draft_memo_node(state: ConflictState) -> dict:
-    return {
-        "memo": (
-            "Conflict search completed. "
-            "No conflict identified."
-        ),
-        "status": "awaiting_partner_signoff",
-    }
+    policy_docs = state.get("policy_docs", [])
+    if policy_docs:
+        policy_section = "\n\n".join(
+            f"[{doc['metadata'].get('source', 'policy')}]\n{doc['content']}"
+            for doc in policy_docs
+        )
+    else:
+        policy_section = "No policy documents retrieved."
+
+    result_text = "Conflict identified." if state.get("conflict_found") else "No conflict identified."
+
+    memo = (
+        "Conflict search completed. "
+        f"{result_text}\n\n"
+        "Relevant policy:\n"
+        f"{policy_section}"
+    )
+    return {"memo": memo, "status": "awaiting_partner_signoff"}
 
 
 def awaiting_partner_signoff_node(state: ConflictState) -> dict:
@@ -120,6 +139,7 @@ def build_graph(checkpointer: DBCheckpointSaver):
     )
     builder.add_node("search", search_node)
     builder.add_node("evaluate", evaluate_node)
+    builder.add_node("retrieve_policy", retrieve_policy_node)
     builder.add_node("draft_memo", draft_memo_node)
     builder.add_node(
         "awaiting_partner_signoff",
@@ -132,7 +152,8 @@ def build_graph(checkpointer: DBCheckpointSaver):
     builder.add_edge("intake", "decompose_conflict_check")
     builder.add_edge("decompose_conflict_check", "search")
     builder.add_edge("search", "evaluate")
-    builder.add_edge("evaluate", "draft_memo")
+    builder.add_edge("evaluate", "retrieve_policy")
+    builder.add_edge("retrieve_policy", "draft_memo")
     builder.add_edge("draft_memo", "awaiting_partner_signoff")
 
     builder.add_conditional_edges(

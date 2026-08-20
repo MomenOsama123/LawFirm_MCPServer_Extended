@@ -25,22 +25,11 @@ def create_test_database(db_path: Path) -> None:
     conn.close()
 
 
-def run_worker(
-    db_path: Path,
-    log_file: Path,
-    mode: str,
-) -> subprocess.CompletedProcess[str]:
+def run_worker(db_path: Path, log_file: Path, mode: str,) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT_DIR)
 
-    return subprocess.run(
-        [
-            sys.executable,
-            str(WORKER_FILE),
-            str(db_path),
-            str(log_file),
-            mode,
-        ],
+    return subprocess.run([sys.executable, str(WORKER_FILE), str(db_path), str(log_file), mode,],
         cwd=ROOT_DIR,
         capture_output=True,
         text=True,
@@ -71,6 +60,7 @@ def test_conflict_clearance_recovers_after_process_kill(tmp_path):
         "decompose_conflict_check",
         "search",
         "evaluate",
+        "retrieve_policy",
         "draft_memo",
         "awaiting_partner_signoff",
     ]
@@ -113,10 +103,8 @@ def test_conflict_clearance_recovers_after_process_kill(tmp_path):
     assert all_nodes.count("decompose_conflict_check") == 1
     assert all_nodes.count("search") == 1
     assert all_nodes.count("evaluate") == 1
+    assert all_nodes.count("retrieve_policy") == 1
     assert all_nodes.count("draft_memo") == 1
-
-    # awaiting_partner_signoff started once before the crash
-    # and once after recovery.
     assert all_nodes.count("awaiting_partner_signoff") == 2
 
     # Recovery should have produced additional checkpoints.
@@ -154,15 +142,15 @@ def test_conflict_check_generates_ordered_checklist(tmp_path):
         in result.stdout
     )
 
-    nodes = log_file.read_text(
-        encoding="utf-8"
-    ).splitlines()
+    nodes = log_file.read_text(encoding="utf-8").splitlines()
 
-    assert nodes[:6] == [
+    assert nodes[:7] == [
         "intake",
         "decompose_conflict_check",
         "search",
         "evaluate",
+        "retrieve_policy",
         "draft_memo",
         "awaiting_partner_signoff",
     ]
+

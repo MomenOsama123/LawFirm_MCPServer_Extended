@@ -18,6 +18,7 @@ def install_test_hooks(log_file: str, mode: str) -> None:
     original_conflict = conflict_graph.decompose_conflict_check_node
     original_search = conflict_graph.search_node
     original_evaluate = conflict_graph.evaluate_node
+    original_retrieve_policy = conflict_graph.retrieve_policy_node  
     original_draft = conflict_graph.draft_memo_node
     original_signoff = conflict_graph.awaiting_partner_signoff_node
 
@@ -37,6 +38,10 @@ def install_test_hooks(log_file: str, mode: str) -> None:
         record_node("evaluate", log_file)
         return original_evaluate(state)
 
+    def retrieve_policy_hook(state):                              
+        record_node("retrieve_policy", log_file)
+        return original_retrieve_policy(state)
+
     def draft_hook(state):
         record_node("draft_memo", log_file)
         return original_draft(state)
@@ -53,6 +58,7 @@ def install_test_hooks(log_file: str, mode: str) -> None:
     conflict_graph.decompose_conflict_check_node = conflict_hook
     conflict_graph.search_node = search_hook
     conflict_graph.evaluate_node = evaluate_hook
+    conflict_graph.retrieve_policy_node = retrieve_policy_hook
     conflict_graph.draft_memo_node = draft_hook
     conflict_graph.awaiting_partner_signoff_node = signoff_hook
 
