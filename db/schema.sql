@@ -154,3 +154,23 @@ CREATE TABLE graph_checkpoint_write (
         write_index
     )
 );
+
+CREATE TABLE hitl_tasks (
+    task_id              TEXT PRIMARY KEY,
+    thread_id            TEXT NOT NULL,
+    case_id              TEXT NOT NULL REFERENCES "case"(case_id),
+    task_type            TEXT NOT NULL,
+    risk_score           REAL NOT NULL,
+    status               TEXT NOT NULL DEFAULT 'pending'
+                         CHECK (status IN ('pending', 'approved', 'rejected')),
+    decision_by          TEXT REFERENCES staff(staff_id),
+    decision_at          TEXT,
+    created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_hitl_tasks_thread
+    ON hitl_tasks(thread_id);
+
+CREATE INDEX idx_hitl_tasks_status
+    ON hitl_tasks(status);

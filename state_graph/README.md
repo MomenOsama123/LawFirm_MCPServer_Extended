@@ -158,3 +158,18 @@ Next work should focus on:
 
 Future graph implementations should build on this foundation rather than introducing separate graph runners or checkpoint stores.
 
+## Human-in-the-Loop Conflict Review
+
+Conflict hits with a risk score above `0.70` require partner/admin approval before the graph can continue.
+
+The threshold is intentionally conservative: a high-risk conflict must not be cleared autonomously because an incorrect clearance creates legal and compliance exposure.
+
+When the threshold is exceeded:
+
+1. A row is created in `hitl_tasks` with `pending` status.
+2. LangGraph interrupts the workflow.
+3. The checkpoint is persisted through the DB-backed checkpointer.
+4. The platform can surface the pending task to an administrator.
+5. The graph resumes only after an explicit `approve` or `reject` decision.
+6. The actual administrator decision is stored in `hitl_tasks` and determines the next graph state.
+

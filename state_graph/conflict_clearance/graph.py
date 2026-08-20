@@ -4,11 +4,21 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from state_graph.checkpointer import DBCheckpointSaver
 from project_root.rag.policy_retriever import retrieve_policy_docs
+import sqlite3
+import uuid
+from mcp_server.database import get_connection
+
+RISK_SCORE_THRESHOLD = 0.70
+# Conflicts above 0.70 require human partner review.
+# The threshold intentionally prevents the agent from unilaterally
+# clearing cases where the conflict evidence is sufficiently risky.
 
 class ConflictState(TypedDict):
     case_id: str
+    thread_id: str
     status: str
     conflict_found: bool
+    risk_score: float
     partner_approved: bool
     check_list: list[str]
     search_results: list[str]
@@ -38,10 +48,12 @@ def search_node(state: ConflictState) -> dict:
 
 
 def evaluate_node(state: ConflictState) -> dict:
-    conflict_found = False
+    risk_score = 0.85
+
     return {
-        "conflict_found": conflict_found,
-        "evaluation": "No conflict identified.",
+        "conflict_found": risk_score > 0,
+        "risk_score": risk_score,
+        "evaluation": f"Conflict risk score: {risk_score:.2f}",
     }
 
 def retrieve_policy_node(state: ConflictState) -> dict:
@@ -69,19 +81,91 @@ def draft_memo_node(state: ConflictState) -> dict:
         "Relevant policy:\n"
         f"{policy_section}"
     )
-    return {"memo": memo, "status": "awaiting_partner_signoff"}
+    return {"memo": memo, "status": "partner_signoff"}
 
 
-def awaiting_partner_signoff_node(state: ConflictState) -> dict:
-    approved = interrupt("Waiting for partner sign-off.")
+
+def partner_signoff_node(state: ConflictState) -> dict:
+    risk_score = state["risk_score"]
+
+    if risk_score <= RISK_SCORE_THRESHOLD:
+        return {
+            "partner_approved": True,
+            "status": "cleared",
+        }
+
+    task_id = str(uuid.uuid4())
+
+    # INSERT OR IGNORE is important because LangGraph re-runs the
+    # interrupted node from the beginning when it resumes.
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO hitl_tasks (
+                task_id,
+                thread_id,
+                case_id,
+                task_type,
+                risk_score,
+                status
+            )
+            VALUES (?, ?, ?, ?, ?, 'pending')
+            """,
+            (
+                task_id,
+                state["thread_id"],
+                state["case_id"],
+                "partner_signoff",
+                risk_score,
+            ),
+        )
+        conn.commit()
+
+    decision = interrupt(
+        {
+            "task_id": task_id,
+            "type": "partner_signoff",
+            "case_id": state["case_id"],
+            "risk_score": risk_score,
+        }
+    )
+
+    if not isinstance(decision, dict):
+        raise ValueError("Invalid HITL decision.")
+
+    action = decision.get("decision")
+    decided_by = decision.get("decided_by")
+
+    if action not in {"approve", "reject"}:
+        raise ValueError("HITL decision must be 'approve' or 'reject'.")
+
+    if not decided_by:
+        raise ValueError("HITL decision requires decided_by.")
+
+    status = "approved" if action == "approve" else "rejected"
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE hitl_tasks
+            SET
+                status = ?,
+                decision_by = ?,
+                decision_at = datetime('now'),
+                updated_at = datetime('now')
+            WHERE task_id = ?
+            """,
+            (
+                status,
+                decided_by,
+                task_id,
+            ),
+        )
+        conn.commit()
 
     return {
-        "partner_approved": bool(approved),
-        "status": (
-            "cleared"
-            if approved
-            else "rejected"
-        ),
+        "partner_approved": action == "approve",
+        "status": "cleared" if action == "approve" else "rejected",
     }
 
 
@@ -89,7 +173,7 @@ def route_after_conflict(state: ConflictState) -> str:
     if state.get("conflict_found"):
         return "rejected"
 
-    return "awaiting_partner_signoff"
+    return "partner_signoff"
 
 
 def route_after_signoff(state: ConflictState) -> str:
@@ -125,7 +209,7 @@ def build_graph(checkpointer: DBCheckpointSaver):
           ↓
         draft_memo
           ↓
-        awaiting_partner_signoff
+        partner_signoff
           ↓
         cleared / rejected
     """
@@ -139,12 +223,10 @@ def build_graph(checkpointer: DBCheckpointSaver):
     )
     builder.add_node("search", search_node)
     builder.add_node("evaluate", evaluate_node)
+    builder.add_node("partner_signoff",partner_signoff_node,)
+    builder.add_edge("draft_memo","partner_signoff",)
     builder.add_node("retrieve_policy", retrieve_policy_node)
     builder.add_node("draft_memo", draft_memo_node)
-    builder.add_node(
-        "awaiting_partner_signoff",
-        awaiting_partner_signoff_node,
-    )
     builder.add_node("cleared", cleared_node)
     builder.add_node("rejected", rejected_node)
 
@@ -154,13 +236,13 @@ def build_graph(checkpointer: DBCheckpointSaver):
     builder.add_edge("search", "evaluate")
     builder.add_edge("evaluate", "retrieve_policy")
     builder.add_edge("retrieve_policy", "draft_memo")
-    builder.add_edge("draft_memo", "awaiting_partner_signoff")
+    builder.add_edge("draft_memo", "partner_signoff")
 
     builder.add_conditional_edges(
-        "awaiting_partner_signoff",
+        "partner_signoff",
         lambda state: (
             "cleared"
-            if state.get("partner_approved")
+            if state["partner_approved"]
             else "rejected"
         ),
         {
