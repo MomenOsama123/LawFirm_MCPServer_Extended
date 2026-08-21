@@ -8,7 +8,7 @@ from .models import CaseAssignmentGraphState
 from .states import CaseAssignmentState
 
 from planning.algorithms.tree_of_thoughts import TreeOfThoughtsEngine
-
+from mcp_server.tools import assign_case_to_lawyer
 
 MAX_RETRIES = 3  # Maximum number of reassignment attempts before escalation
 
@@ -191,3 +191,15 @@ def build_case_assignment_graph():
     )
 
     return graph.compile(checkpointer=MemorySaver())
+
+def propose_node(state: CaseAssignmentState) -> dict:
+    lawyer_id = state.get("current_lawyer_id")
+    case_id = state.get("case_id")
+    
+    # Execute actual tool call
+    assignment_result = assign_case_to_lawyer(case_id=case_id, lawyer_id=lawyer_id)
+    
+    return {
+        "status": "proposed",
+        "assignment_result": assignment_result
+    }
