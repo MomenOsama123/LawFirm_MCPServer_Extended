@@ -25,8 +25,3 @@ __pycache__/
 # Miscellaneous / Specific
 # ==========================
 **/AppData/Roaming/sFree Office for Docs and PDF/4__pycache__/
-__pycache__/
-*.pyc
-.pytest_cache/
-.chroma/
-.env

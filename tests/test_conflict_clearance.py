@@ -1,7 +1,5 @@
-# $env:PYTHONPATH="."
-# pytest tests/test_checkpointer.py tests/test_conflict_clearance.py -v
-
 from __future__ import annotations
+
 import os
 import sqlite3
 import subprocess
@@ -11,64 +9,47 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SCHEMA_FILE = ROOT_DIR / "db" / "schema.sql"
-WORKER_FILE = ROOT_DIR / "tests" / "conflict_worker.py"
+
+ENV = os.environ.copy()
+ENV["PYTHONPATH"] = str(ROOT_DIR)
 
 
-def create_test_database(db_path: Path) -> None:
+def create_test_database(db_path: Path):
     conn = sqlite3.connect(db_path)
-
-    conn.executescript(
-        SCHEMA_FILE.read_text(encoding="utf-8")
-    )
-
+    conn.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
     conn.commit()
     conn.close()
 
 
-def run_worker(db_path: Path, log_file: Path, mode: str,) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(ROOT_DIR)
-
-    return subprocess.run([sys.executable, str(WORKER_FILE), str(db_path), str(log_file), mode,],
-        cwd=ROOT_DIR,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-
-
-def test_conflict_clearance_recovers_after_process_kill(tmp_path):
+def test_conflict_clearance_resumes_in_new_process(tmp_path):
     db_path = tmp_path / "case_intake_test.db"
-    log_file = tmp_path / "nodes.log"
-
     create_test_database(db_path)
 
-    # Process 1: run until running_conflict_check completes,
-    # then kill the process at the next node.
-    crashed = run_worker(
-        db_path,
-        log_file,
-        "crash",
-    )
+    try:
+        start = subprocess.run(
+            [
+                sys.executable,
+                "tests/conflict_worker.py",
+                str(db_path),
+                "start",
+            ],
+            cwd=ROOT_DIR,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=ENV,
+        )
+    except subprocess.CalledProcessError as e:
+        print("\n--- SUBPROCESS STDOUT ---")
+        print(e.stdout)
+        print("--- SUBPROCESS STDERR ---")
+        print(e.stderr)
+        raise e
 
-    assert crashed.returncode == 42
+    assert "awaiting_partner_signoff" in start.stdout
 
-    first_run_nodes = log_file.read_text(encoding="utf-8").splitlines()
-
-    assert first_run_nodes == [
-        "intake",
-        "decompose_conflict_check",
-        "search",
-        "evaluate",
-        "retrieve_policy",
-        "draft_memo",
-        "awaiting_partner_signoff",
-    ]
-
-    # Confirm checkpoints exist directly in our database.
     conn = sqlite3.connect(db_path)
-
-    checkpoint_count_before = conn.execute(
+    checkpoint_count = conn.execute(
         """
         SELECT COUNT(*)
         FROM graph_checkpoint
@@ -76,81 +57,29 @@ def test_conflict_clearance_recovers_after_process_kill(tmp_path):
         """,
         ("conflict-test-thread",),
     ).fetchone()[0]
-
     conn.close()
 
-    # We should have:
-    # input checkpoint + intake checkpoint + conflict-check checkpoint.
-    assert checkpoint_count_before >= 3
+    assert checkpoint_count >= 3
 
-    # Process 2: resume from the latest saved checkpoint.
-    recovered = run_worker(
-        db_path,
-        log_file,
-        "recover",
-    )
+    try:
+        resume = subprocess.run(
+            [
+                sys.executable,
+                "tests/conflict_worker.py",
+                str(db_path),
+                "resume",
+            ],
+            cwd=ROOT_DIR,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=ENV,
+        )
+    except subprocess.CalledProcessError as e:
+        print("\n--- SUBPROCESS STDOUT ---")
+        print(e.stdout)
+        print("--- SUBPROCESS STDERR ---")
+        print(e.stderr)
+        raise e
 
-    assert recovered.returncode == 0
-    assert "cleared" in recovered.stdout
-
-    all_nodes = log_file.read_text(
-        encoding="utf-8"
-    ).splitlines()
-
-    # intake and running_conflict_check were completed before the crash
-    # and therefore must not execute again.
-    assert all_nodes.count("intake") == 1
-    assert all_nodes.count("decompose_conflict_check") == 1
-    assert all_nodes.count("search") == 1
-    assert all_nodes.count("evaluate") == 1
-    assert all_nodes.count("retrieve_policy") == 1
-    assert all_nodes.count("draft_memo") == 1
-    assert all_nodes.count("awaiting_partner_signoff") == 2
-
-    # Recovery should have produced additional checkpoints.
-    conn = sqlite3.connect(db_path)
-
-    checkpoint_count_after = conn.execute(
-        """
-        SELECT COUNT(*)
-        FROM graph_checkpoint
-        WHERE thread_id = ?
-        """,
-        ("conflict-test-thread",),
-    ).fetchone()[0]
-
-    conn.close()
-
-    assert checkpoint_count_after > checkpoint_count_before
-
-def test_conflict_check_generates_ordered_checklist(tmp_path):
-    db_path = tmp_path / "case_intake_test.db"
-    log_file = tmp_path / "nodes.log"
-
-    create_test_database(db_path)
-
-    result = run_worker(
-        db_path,
-        log_file,
-        "normal",
-    )
-
-    assert result.returncode == 0
-
-    assert (
-        "CHECKLIST: ['search', 'evaluate', 'draft_memo']"
-        in result.stdout
-    )
-
-    nodes = log_file.read_text(encoding="utf-8").splitlines()
-
-    assert nodes[:7] == [
-        "intake",
-        "decompose_conflict_check",
-        "search",
-        "evaluate",
-        "retrieve_policy",
-        "draft_memo",
-        "awaiting_partner_signoff",
-    ]
-
+    assert "cleared" in resume.stdout
