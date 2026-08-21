@@ -13,10 +13,11 @@ SEED_FILE = ROOT_DIR / "db" / "seed_data.sql"
 
 class TestDB:
     __test__ = False
+
     def __init__(self, db_path: Path):
         self.db_path = db_path
 
-    def __call__(self):
+    def __call__(self, db_path=None):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
@@ -103,6 +104,7 @@ def test_risky_conflict_creates_hitl_task_and_pauses(tmp_path):
     config = {
         "configurable": {
             "thread_id": "hitl-test-thread",
+            "db_path": str(db_path),
         }
     }
 
@@ -132,6 +134,7 @@ def test_admin_approval_resumes_to_cleared(tmp_path):
     config = {
         "configurable": {
             "thread_id": "hitl-test-thread",
+            "db_path": str(db_path),
         }
     }
 
@@ -173,6 +176,7 @@ def test_admin_rejection_resumes_to_rejected(tmp_path):
     config = {
         "configurable": {
             "thread_id": "hitl-test-thread",
+            "db_path": str(db_path),
         }
     }
 
