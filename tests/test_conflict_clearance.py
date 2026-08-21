@@ -16,9 +16,42 @@ WORKER_FILE = ROOT_DIR / "tests" / "conflict_worker.py"
 
 def create_test_database(db_path: Path) -> None:
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON;")
 
     conn.executescript(
         SCHEMA_FILE.read_text(encoding="utf-8")
+    )
+
+    # Seed minimal parent rows so FK-constrained inserts made by the
+    # graph (e.g. hitl_tasks.case_id -> case.case_id) succeed.
+    conn.execute(
+        """
+        INSERT INTO party (party_id, full_name, party_type)
+        VALUES ('party-test', 'Test Client', 'client')
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO case_type_policy (
+            policy_id, case_type, min_seniority_required,
+            required_documents, auto_reject_if_conflict
+        )
+        VALUES ('policy-test', 'civil', 1, '[]', 0)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO staff (staff_id, full_name, role, email, active)
+        VALUES ('staff-test', 'Test Partner', 'partner', 'partner@test.local', 1)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO "case" (
+            case_id, client_party_id, policy_id, description
+        )
+        VALUES ('case-test', 'party-test', 'policy-test', 'Test case for conflict clearance')
+        """
     )
 
     conn.commit()

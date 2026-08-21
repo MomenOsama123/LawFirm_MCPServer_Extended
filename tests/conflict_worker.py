@@ -20,7 +20,7 @@ def install_test_hooks(log_file: str, mode: str) -> None:
     original_evaluate = conflict_graph.evaluate_node
     original_retrieve_policy = conflict_graph.retrieve_policy_node  
     original_draft = conflict_graph.draft_memo_node
-    original_signoff = conflict_graph.awaiting_partner_signoff_node
+    original_signoff = conflict_graph.partner_signoff_node
 
     def intake_hook(state):
         record_node("intake", log_file)
@@ -46,13 +46,14 @@ def install_test_hooks(log_file: str, mode: str) -> None:
         record_node("draft_memo", log_file)
         return original_draft(state)
 
-    def signoff_hook(state):
+
+    def signoff_hook(state, config):
         record_node("awaiting_partner_signoff", log_file)
         if mode == "crash":
             os._exit(42)
         if mode == "recover":
             return {"partner_approved": True, "status": "cleared"}
-        return original_signoff(state)
+        return original_signoff(state, config)
 
     conflict_graph.intake_node = intake_hook
     conflict_graph.decompose_conflict_check_node = conflict_hook
@@ -60,7 +61,7 @@ def install_test_hooks(log_file: str, mode: str) -> None:
     conflict_graph.evaluate_node = evaluate_hook
     conflict_graph.retrieve_policy_node = retrieve_policy_hook
     conflict_graph.draft_memo_node = draft_hook
-    conflict_graph.awaiting_partner_signoff_node = signoff_hook
+    conflict_graph.partner_signoff_node = signoff_hook
 
 
 def main() -> None:
@@ -85,6 +86,7 @@ def main() -> None:
     config = {
         "configurable": {
             "thread_id": THREAD_ID,
+            "db_path": db_path,
         }
     }
 
