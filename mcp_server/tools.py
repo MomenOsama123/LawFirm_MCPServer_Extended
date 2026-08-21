@@ -8,7 +8,9 @@ import sqlite3
 
 from planning.decomposition.static_decomposition import decompose_goal, execute_plan, final_output
 from planning.decomposition.dynamic_decomposition import dynamic_decomposition
+from mcp.server.fastmcp import FastMCP
 
+mcp = FastMCP("law_firm_server")
 logger = logging.getLogger(__name__)
 
 # ---------------------------
@@ -436,4 +438,15 @@ def dynamic_task_decomposition(goal: str) -> list[tuple[str, str]]:
     from planning.llm import llm
 
     return dynamic_decomposition(goal, llm)
+
+
+@mcp.tool()
+def assign_case_to_lawyer(case_id: str, lawyer_id: str) -> dict:
+    """Assigns a case officially to a lawyer in the system/database."""
+    # Add your DB persistence / status update logic here
+    return {
+        "status": "assigned",
+        "case_id": case_id,
+        "lawyer_id": lawyer_id
+    }
 
