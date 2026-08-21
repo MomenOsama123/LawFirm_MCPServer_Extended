@@ -1,10 +1,12 @@
 from pathlib import Path
 import sqlite3
+import platform as stdlib_platform
 
 import pytest
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+stdlib_platform.__path__ = [str(ROOT_DIR / "platform")]
 DB_FILE = ROOT_DIR / "db" / "case_intake.db"
 SCHEMA_FILE = ROOT_DIR / "db" / "schema.sql"
 SEED_FILE = ROOT_DIR / "db" / "seed_data.sql"
