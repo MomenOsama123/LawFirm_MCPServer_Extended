@@ -10,11 +10,13 @@ import { X, CircleCheckBig, CircleX, ShieldAlert, FileText, Users, TriangleAlert
 export function CaseDetailModal({
   legalCase,
   busy = false,
+  canDecide = true,
   onClose,
   onAction,
 }: {
   legalCase: LegalCase | null
   busy?: boolean
+  canDecide?: boolean
   onClose: () => void
   onAction: (id: string, status: CaseStatus) => void
 }) {
@@ -185,14 +187,14 @@ export function CaseDetailModal({
                 Decision recorded — <StatusBadge status={c.status} />
               </span>
             ) : (
-              "Human-in-the-loop decision required."
+              canDecide ? "Human-in-the-loop decision required." : "Your role can view this matter but cannot record decisions."
             )}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => onAction(c.id, "rejected")}
-              disabled={busy || c.status === "rejected"}
+              disabled={!canDecide || busy || c.status === "rejected"}
               className="gap-1.5 border-danger/30 text-danger hover:bg-danger-muted hover:text-danger"
             >
               <CircleX className="size-4" />
@@ -202,7 +204,7 @@ export function CaseDetailModal({
               <Button
                 variant="outline"
                 onClick={() => onAction(c.id, "override")}
-                disabled={busy || c.status === "override"}
+                disabled={!canDecide || busy || c.status === "override"}
                 className="gap-1.5 border-info/30 text-info hover:bg-info-muted hover:text-info"
               >
                 <ShieldAlert className="size-4" />
@@ -211,7 +213,7 @@ export function CaseDetailModal({
             )}
             <Button
               onClick={() => onAction(c.id, "approved")}
-              disabled={busy || c.status === "approved"}
+              disabled={!canDecide || busy || c.status === "approved"}
               className="gap-1.5 bg-success text-success-foreground hover:bg-success/90"
             >
               <CircleCheckBig className="size-4" />

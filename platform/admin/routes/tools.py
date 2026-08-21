@@ -58,6 +58,9 @@ async def _call_mcp_tool(tool: str, arguments: Dict[str, Any]):
         "get_client",
         "get_conflict_checks",
         "get_lawyer",
+        "get_staff",
+        "list_staff",
+        "create_staff",
         "accept_case",
         "reject_case",
     }

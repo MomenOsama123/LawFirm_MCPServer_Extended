@@ -421,6 +421,49 @@ def get_lawyer(lawyer_id: str) -> dict:
     return dict(row)
 
 
+@mcp.tool(description="Retrieve staff user details by staff ID.")
+def get_staff(staff_id: str) -> dict:
+    if not staff_id or not staff_id.strip():
+        return {"success": False, "error": "Staff ID is required."}
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT staff_id, full_name, role, email, active FROM staff WHERE staff_id = ?",
+            (staff_id,),
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return {"success": False, "error": "Staff member not found."}
+    return dict(row)
+
+
+@mcp.tool(description="List active staff users available to the web platform.")
+def list_staff() -> list[dict]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT staff_id, full_name, role, email, active FROM staff WHERE active = 1 ORDER BY full_name"
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+@mcp.tool(description="Create an active staff user for the web platform.")
+def create_staff(staff_id: str, full_name: str, role: str, email: str) -> dict:
+    allowed_roles = {"receptionist", "senior_associate", "partner", "admin"}
+    if role not in allowed_roles or not all(value.strip() for value in (staff_id, full_name, email)):
+        return {"success": False, "error": "Valid staff ID, name, email, and role are required."}
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO staff (staff_id, full_name, role, email, active) VALUES (?, ?, ?, ?, 1)",
+                (staff_id.strip(), full_name.strip(), role, email.strip()),
+            )
+            conn.commit()
+    except sqlite3.IntegrityError:
+        return {"success": False, "error": "Staff ID or email already exists."}
+    return {"success": True, "staff_id": staff_id.strip(), "message": "Staff user created."}
+
+
 # ---------------------------
 # PLANNING / DECOMPOSITION
 # ---------------------------
