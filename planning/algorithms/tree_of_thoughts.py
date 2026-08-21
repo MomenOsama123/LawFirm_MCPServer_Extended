@@ -32,6 +32,20 @@ REASON: <short text>
 """
 
 
+class TreeOfThoughtsEngine:
+    """Compatibility facade for callers using the earlier ToT API."""
+
+    def select_next_best_attorney(
+        self,
+        case_id: Optional[str] = None,
+        excluded_lawyers: Optional[List[str]] = None,
+    ) -> Optional[str]:
+        """Return the next attorney candidate when one is supplied by the caller."""
+        del case_id
+        candidates = [candidate for candidate in (excluded_lawyers or []) if candidate]
+        return candidates[0] if candidates else None
+
+
 def _call_llm(llm: Any, prompt: str) -> str:
     """Helper function to handle both LangChain and simple LLM clients."""
     if hasattr(llm, "invoke"):
