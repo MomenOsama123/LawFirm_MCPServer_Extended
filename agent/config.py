@@ -1,0 +1,20 @@
+MAX_STEPS = 6
+
+MODEL_NAME = "gemini-flash-latest"
+
+
+REQUIRED_CASE_TOOLS = [
+"get_case",
+"get_client",
+"get_conflict_checks",
+"get_lawyer",
+]
+REQUIRED_RESOURCES = [
+    "company://intake-policy",
+    "company://case-types",
+    "company://required-documents",
+    "company://lawyers",
+    "company://statistics",
+    "company://staff",
+    "company://policies/conflict",
+]
