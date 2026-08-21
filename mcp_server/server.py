@@ -33,3 +33,7 @@ class MCPServer:
         return list(self.agent_tools.get(agent_id, []))
 
 mcp_server_instance = MCPServer()
+
+
+if __name__ == "__main__":
+    mcp.run(transport="http", host="127.0.0.1", port=8000)
