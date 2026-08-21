@@ -1,30 +1,35 @@
-import logging
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
+from typing import Dict, List, Set, Any
 
 from .mcp_instance import mcp
+from .tools import accept_case, get_conflict_checks, reject_case
 
-from .runtime import RuntimeToolRegistry
-from .tools import *
-from .prompts import *
-from .resources import *
+class MCPServer:
+    def __init__(self):
+        self.agent_tools: Dict[str, Set[str]] = {}
 
-runtime_registry = RuntimeToolRegistry(mcp)
+    def register_tool(self, agent_id: str, tool_name: str) -> Dict[str, Any]:
+        """Dynamically binds a tool to a specific agent at runtime."""
+        if agent_id not in self.agent_tools:
+            self.agent_tools[agent_id] = set()
+        self.agent_tools[agent_id].add(tool_name)
+        return {
+            "status": "success",
+            "agent_id": agent_id,
+            "active_tools": list(self.agent_tools[agent_id])
+        }
 
-runtime_registry.register_tool(assign_case_to_lawyer)
-if __name__ == "__main__":
-    logger.info("Starting Law Firm MCP server...")
+    def unregister_tool(self, agent_id: str, tool_name: str) -> Dict[str, Any]:
+        """Dynamically removes a tool from a specific agent at runtime."""
+        if agent_id in self.agent_tools and tool_name in self.agent_tools[agent_id]:
+            self.agent_tools[agent_id].remove(tool_name)
+        return {
+            "status": "success",
+            "agent_id": agent_id,
+            "active_tools": list(self.agent_tools.get(agent_id, []))
+        }
 
-    mcp.run(
-        transport="http",
-        host="0.0.0.0",
-        port=8000,
-    )
+    def get_agent_tools(self, agent_id: str) -> List[str]:
+        """Returns active whitelisted tools for an agent."""
+        return list(self.agent_tools.get(agent_id, []))
 
-
-# python -m mcp_server.server
-# npx @modelcontextprotocol/inspector
+mcp_server_instance = MCPServer()
