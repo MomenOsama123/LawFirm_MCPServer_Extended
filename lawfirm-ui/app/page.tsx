@@ -14,6 +14,7 @@ import {
 } from "@/lib/legal-data"
 import { Search, X } from "lucide-react"
 import { callMcpTool } from "@/lib/mcp-client"
+import { UserProfileModal } from "@/components/legal/user-profile-modal"
 
 const viewTitles: Record<ViewKey, string> = {
   dashboard: "Operations Dashboard",
@@ -29,6 +30,17 @@ const actionVerb: Record<Exclude<CaseStatus, "pending">, string> = {
   override: "Overrode conflict flag",
 }
 
+const fallbackUsers = [
+  { staff_id: "staff-001", full_name: "Mona Adel", role: "receptionist", email: "mona@lawfirm.eg", active: 1 },
+  { staff_id: "staff-002", full_name: "Nourhan Samir", role: "senior_associate", email: "nourhan@lawfirm.eg", active: 1 },
+  { staff_id: "staff-003", full_name: "Karim El-Sayed", role: "partner", email: "karim@lawfirm.eg", active: 1 },
+  { staff_id: "staff-004", full_name: "Laila Mostafa", role: "admin", email: "laila@lawfirm.eg", active: 1 },
+]
+
+function roleLabel(role: string) {
+  return role === "receptionist" ? "Normal user" : role.replaceAll("_", " ")
+}
+
 export default function Page() {
   const [view, setView] = useState<ViewKey>("dashboard")
   const [cases, setCases] = useState<LegalCase[]>(initialCases)
@@ -36,9 +48,40 @@ export default function Page() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  type StaffUser = { staff_id: string; full_name: string; role: string; email?: string; active?: number }
+  const [users, setUsers] = useState<StaffUser[]>(fallbackUsers)
+  const [user, setUser] = useState<StaffUser | null>(fallbackUsers[2])
+  const [userOpen, setUserOpen] = useState(false)
   const [query, setQuery] = useState("")
   const searchRef = useRef<HTMLInputElement>(null)
   const deferredQuery = useDeferredValue(query)
+
+  useEffect(() => {
+    callMcpTool<StaffUser[]>("list_staff", {})
+      .then((result) => {
+        setUsers(result.data)
+        const selectedId = window.localStorage.getItem("lexordia-staff-id") ?? "staff-003"
+        setUser(result.data.find((staffUser) => staffUser.staff_id === selectedId) ?? result.data[0] ?? null)
+      })
+      .catch(() => undefined)
+  }, [])
+
+  function handleUserSelect(staffId: string) {
+    const selectedUser = users.find((staffUser) => staffUser.staff_id === staffId)
+    if (!selectedUser) return
+    window.localStorage.setItem("lexordia-staff-id", staffId)
+    setUser(selectedUser)
+    setUserOpen(false)
+  }
+
+  async function handleCreateUser(newUser: Omit<StaffUser, "active">) {
+    const result = await callMcpTool<{ success?: boolean; error?: string }>("create_staff", newUser)
+    if (result.data.success === false) throw new Error(result.data.error ?? "Could not create user")
+    const createdUser = { ...newUser, active: 1 }
+    setUsers((previous) => [...previous, createdUser])
+    setUser(createdUser)
+    window.localStorage.setItem("lexordia-staff-id", createdUser.staff_id)
+  }
 
   const pendingCount = useMemo(
     () => cases.filter((c) => c.conflictFlag && c.status === "pending").length,
@@ -46,6 +89,7 @@ export default function Page() {
   )
 
   const openCase = cases.find((c) => c.id === openId) ?? null
+  const canDecide = user?.role !== "receptionist"
 
   const visibleCases = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
@@ -71,7 +115,7 @@ export default function Page() {
   }, [])
 
   async function handleAction(id: string, status: CaseStatus) {
-    if (status === "pending") return
+    if (status === "pending" || !canDecide) return
     const target = cases.find((c) => c.id === id)
     if (!target || busyId) return
     const tool = status === "rejected" ? "reject_case" : "accept_case"
@@ -80,7 +124,7 @@ export default function Page() {
     try {
       const result = await callMcpTool<{ success?: boolean; error?: string }>(tool, {
         case_id: target.backendCaseId,
-        decided_by: "staff-003",
+        decided_by: user.staff_id,
         decision_reason: status === "override" ? "Conflict overridden after human review." : "Decision recorded from Lexordia review queue.",
       })
       if (result.data?.success === false) throw new Error(result.data.error ?? "MCP decision failed")
@@ -123,7 +167,7 @@ export default function Page() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
-      <Sidebar active={view} onNavigate={setView} pendingCount={pendingCount} />
+      <Sidebar active={view} onNavigate={setView} pendingCount={pendingCount} user={user} role={user?.role ?? "receptionist"} onOpenUser={() => setUserOpen(true)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 py-4 sm:flex-nowrap sm:gap-4 sm:px-6">
@@ -154,7 +198,7 @@ export default function Page() {
             </div>
             <span className="inline-flex items-center gap-2 rounded-full bg-success-muted px-3 py-1.5 text-xs font-medium text-success">
               <span className="size-1.5 rounded-full bg-success" aria-hidden />
-              AI agents online
+              {user ? `${roleLabel(user.role)} · AI agents online` : "AI agents online"}
             </span>
           </div>
         </header>
@@ -184,7 +228,8 @@ export default function Page() {
         </main>
       </div>
 
-      <CaseDetailModal legalCase={openCase} busy={openCase?.id === busyId} onClose={() => setOpenId(null)} onAction={handleAction} />
+      <CaseDetailModal legalCase={openCase} busy={openCase?.id === busyId} canDecide={canDecide} onClose={() => setOpenId(null)} onAction={handleAction} />
+      {userOpen && <UserProfileModal user={user} users={users} onSelect={handleUserSelect} onCreate={handleCreateUser} onClose={() => setUserOpen(false)} />}
     </div>
   )
 }

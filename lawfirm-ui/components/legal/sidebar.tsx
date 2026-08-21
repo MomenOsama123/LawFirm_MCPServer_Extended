@@ -3,6 +3,10 @@
 import { cn } from "@/lib/utils"
 import { Scale, LayoutDashboard, FileInput, ShieldAlert, UserCheck, ScrollText } from "lucide-react"
 
+function roleLabel(role: string) {
+  return role === "receptionist" ? "Normal user" : role.replaceAll("_", " ")
+}
+
 export type ViewKey = "dashboard" | "intake" | "conflicts" | "assignment" | "logs"
 
 const nav: { key: ViewKey; label: string; icon: typeof LayoutDashboard }[] = [
@@ -17,11 +21,22 @@ export function Sidebar({
   active,
   onNavigate,
   pendingCount,
+  user,
+  onOpenUser,
+  role,
 }: {
   active: ViewKey
   onNavigate: (v: ViewKey) => void
   pendingCount: number
+  user: { full_name: string; role: string } | null
+  onOpenUser: () => void
+  role: string
 }) {
+  const visibleNav = nav.filter(({ key }) => {
+    if (role === "receptionist") return key === "dashboard" || key === "intake"
+    if (role === "senior_associate") return key !== "logs"
+    return true
+  })
   return (
     <aside className="flex w-16 shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] md:w-64">
       <div className="flex items-center justify-center gap-2.5 px-3 py-5 md:justify-start md:px-5">
@@ -38,7 +53,7 @@ export function Sidebar({
         <p className="hidden px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 md:block">
           Workflow
         </p>
-        {nav.map(({ key, label, icon: Icon }) => {
+        {visibleNav.map(({ key, label, icon: Icon }) => {
           const isActive = active === key
           return (
             <button
@@ -66,15 +81,15 @@ export function Sidebar({
       </nav>
 
       <div className="mt-auto border-t border-sidebar-border px-2 py-4 md:px-4">
-        <div className="flex items-center gap-3">
+        <button type="button" onClick={onOpenUser} title="About user" className="flex w-full items-center gap-3 rounded-md text-left hover:bg-sidebar-accent/60">
           <div className="flex size-9 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-accent-foreground">
-            AR
+            {user ? user.full_name.split(" ").map((name) => name[0]).join("").slice(0, 2) : "--"}
           </div>
           <div className="hidden min-w-0 leading-tight md:block">
-            <p className="truncate text-sm font-medium text-sidebar-accent-foreground">A. Reyes</p>
-            <p className="truncate text-xs text-sidebar-foreground/60">Intake Supervisor</p>
+            <p className="truncate text-sm font-medium text-sidebar-accent-foreground">{user?.full_name ?? "Loading user..."}</p>
+            <p className="truncate capitalize text-xs text-sidebar-foreground/60">{user ? roleLabel(user.role) : "Database profile"}</p>
           </div>
-        </div>
+        </button>
       </div>
     </aside>
   )
