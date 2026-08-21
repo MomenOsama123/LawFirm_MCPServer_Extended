@@ -118,20 +118,6 @@ CREATE INDEX idx_case_assignment_case ON case_assignment(case_id);
 CREATE INDEX idx_case_assignment_lawyer ON case_assignment(lawyer_id);
 CREATE INDEX idx_audit_log_entity ON audit_log(entity_type, entity_id);
 
-CREATE TABLE hitl_tasks (
-    task_id       TEXT PRIMARY KEY,
-    thread_id     TEXT NOT NULL,
-    case_id       TEXT NOT NULL,
-    task_type     TEXT NOT NULL,
-    risk_score    REAL NOT NULL,
-    status        TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
-    decision_by   TEXT,
-    decision_at   TEXT
-);
-
-CREATE INDEX idx_hitl_tasks_thread ON hitl_tasks(thread_id);
-
-
 CREATE TABLE graph_checkpoint(
     checkpoint_id           TEXT PRIMARY KEY,
     thread_id               TEXT NOT NULL,
