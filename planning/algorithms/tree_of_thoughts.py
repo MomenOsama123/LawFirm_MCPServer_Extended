@@ -117,3 +117,44 @@ def run_tree_of_thoughts(sub_task: Any, llm: Any, context: Optional[Dict[str, An
             "llm_calls": llm_calls
         }
     }
+
+def get_available_lawyers_from_db(exclude: List[str]) -> List[Dict]:
+    # Replace with your actual DB query logic
+    return [
+        {"id": "lawyer_1", "active_cases": 2, "max_capacity": 5, "years_experience": 8, "specialty": "corporate"},
+        {"id": "lawyer_2", "active_cases": 5, "max_capacity": 5, "years_experience": 12, "specialty": "litigation"},
+        {"id": "lawyer_3", "active_cases": 1, "max_capacity": 4, "years_experience": 4, "specialty": "corporate"},
+    ]
+
+def evaluate_case_suitability(lawyer: Dict, case_details: Dict) -> float:
+    score = 0.0
+    if lawyer.get("specialty") == case_details.get("required_specialty"):
+        score += 5.0
+    return score
+
+def select_next_best_attorney(case_details: Dict, excluded_lawyers: List[str]) -> Optional[str]:
+    lawyers = get_available_lawyers_from_db(exclude=excluded_lawyers)
+    candidates = []
+
+    for lawyer in lawyers:
+        if lawyer["id"] in excluded_lawyers:
+            continue
+            
+        # Hard constraint: Check Capacity Limit
+        if lawyer["active_cases"] >= lawyer["max_capacity"]:
+            continue
+            
+        # Calculate ToT Score
+        suitability_score = evaluate_case_suitability(lawyer, case_details)
+        experience_score = lawyer["years_experience"] * 0.2
+        total_score = suitability_score + experience_score
+
+        candidates.append((lawyer["id"], total_score))
+
+    # Sort candidates by total score descending
+    candidates.sort(key=lambda x: x[1], reverse=True)
+
+    if not candidates:
+        return None  # Triggers Escalation to HITL
+
+    return candidates[0][0]
