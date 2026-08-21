@@ -1,3 +1,32 @@
-__pycache__/ 
-*.pyc 
-.env 
+# ==========================
+# Python Bytecode and Cache
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# ==========================
+# Environment & Secrets
+# ==========================
+.env
+.env.*
+!.env.example
+
+# ==========================
+# Operating System Files
+# ==========================
+.DS_Store
+
+# ==========================
+# Miscellaneous / Specific
+# ==========================
+**/AppData/Roaming/sFree Office for Docs and PDF/4__pycache__/
+__pycache__/
+*.pyc
+.pytest_cache/
+.chroma/
+.env
